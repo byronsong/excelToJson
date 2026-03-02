@@ -42,8 +42,8 @@ func ReadExcel(filePath string) ([]*schema.SheetSchema, error) {
 		// 解析表头
 		schema, err := schema.ParseHeader(rows, fileName, sheetName)
 		if err != nil {
-			// 如果是 A1 为空的警告，返回 nil 而不是 error
-			if strings.Contains(err.Error(), "A1 为空") {
+			// 如果是 A1 为空或未找到 FieldName 行的警告，打印警告并跳过
+			if strings.Contains(err.Error(), "A1 为空") || strings.Contains(err.Error(), "未找到 FieldName 行") {
 				fmt.Printf("[WARN] %s\n", err.Error())
 				continue
 			}
