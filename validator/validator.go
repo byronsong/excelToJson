@@ -51,10 +51,12 @@ func validateTypes(classData *merger.ClassData, pkIndex int) error {
 	fields := classData.Schema.Fields
 
 	for rowIdx, row := range classData.Rows {
-		for colIdx, field := range fields {
+		for _, field := range fields {
 			if field.Ignored {
 				continue
 			}
+			// 使用 field.ColIndex 获取实际的列索引
+			colIdx := field.ColIndex
 			if colIdx >= len(row) {
 				continue
 			}
@@ -77,9 +79,13 @@ func validateTypes(classData *merger.ClassData, pkIndex int) error {
 func validateCellType(value string, field schema.FieldDef, schemaInfo *schema.SheetSchema, row, col int) error {
 	switch field.FieldType {
 	case schema.TypeInt:
+		// 先尝试直接解析
 		if _, err := strconv.ParseInt(value, 10, 64); err != nil {
-			return fmt.Errorf("%s / %s / 行%d / 列%d (%s): 期望 int 类型，实际值 \"%s\"",
-				schemaInfo.FileName, schemaInfo.SheetName, row, col, field.FieldName, value)
+			// 如果失败，尝试解析为 float（处理科学记数法）
+			if _, err := strconv.ParseFloat(value, 64); err != nil {
+				return fmt.Errorf("%s / %s / 行%d / 列%d (%s): 期望 int 类型，实际值 \"%s\"",
+					schemaInfo.FileName, schemaInfo.SheetName, row, col, field.FieldName, value)
+			}
 		}
 
 	case schema.TypeFloat:

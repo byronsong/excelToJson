@@ -18,10 +18,13 @@ func Build(classData *merger.ClassData) ([]map[string]interface{}, error) {
 	for rowIdx, row := range classData.Rows {
 		rowMap := make(map[string]interface{})
 
-		for colIdx, field := range fields {
+		for _, field := range fields {
 			if field.Ignored {
 				continue
 			}
+
+			// 使用 field.ColIndex 获取实际的列索引
+			colIdx := field.ColIndex
 
 			// 处理嵌套字段
 			if isNestedField(field.FieldName) {
@@ -123,11 +126,15 @@ func getDefaultValue(fieldType schema.FieldType) interface{} {
 func convertValue(value string, fieldType schema.FieldType) (interface{}, error) {
 	switch fieldType {
 	case schema.TypeInt:
-		v, err := strconv.ParseInt(value, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("期望 int 类型，实际值 \"%s\"", value)
+		// 先尝试直接解析
+		if v, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return v, nil
 		}
-		return v, nil
+		// 如果失败，尝试解析为 float 再转换为 int（处理科学记数法）
+		if f, err := strconv.ParseFloat(value, 64); err == nil {
+			return int64(f), nil
+		}
+		return nil, fmt.Errorf("期望 int 类型，实际值 \"%s\"", value)
 
 	case schema.TypeFloat:
 		v, err := strconv.ParseFloat(value, 64)

@@ -60,9 +60,9 @@ func (t FieldType) String() string {
 // ParseFieldType 从类型字符串解析为 FieldType
 func ParseFieldType(typeStr string) FieldType {
 	switch typeStr {
-	case "int":
+	case "int", "int64":
 		return TypeInt
-	case "float":
+	case "float", "float64":
 		return TypeFloat
 	case "string":
 		return TypeString

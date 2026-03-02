@@ -25,11 +25,14 @@ func ReadExcel(filePath string) ([]*schema.SheetSchema, error) {
 	var schemas []*schema.SheetSchema
 
 	for _, sheetName := range sheets {
-		// 读取整个 Sheet 的数据
-		rows, err := f.GetRows(sheetName)
+		// 读取整个 Sheet 的数据（包括空单元格）
+		rows, err := f.GetCols(sheetName)
 		if err != nil {
 			return nil, fmt.Errorf("%s / %s: 读取Sheet失败: %w", fileName, sheetName, err)
 		}
+
+		// GetCols 返回的是列，需要转换为行
+		rows = transpose(rows)
 
 		// 跳过空 Sheet
 		if len(rows) == 0 {
@@ -112,4 +115,39 @@ func ReadAll(inputPath string) ([]*schema.SheetSchema, error) {
 	}
 
 	return allSchemas, nil
+}
+
+// transpose 将列数据转换为行数据
+// GetCols 返回 [][]string，每一行是一列的数据
+// 需要转换为传统的行数据格式
+func transpose(cols [][]string) [][]string {
+	if len(cols) == 0 {
+		return [][]string{}
+	}
+
+	// 找出最长的列
+	maxRows := 0
+	for _, col := range cols {
+		if len(col) > maxRows {
+			maxRows = len(col)
+		}
+	}
+
+	// 创建行数据，初始化为空字符串
+	rows := make([][]string, maxRows)
+	for i := range rows {
+		rows[i] = make([]string, len(cols))
+		for j := range rows[i] {
+			rows[i][j] = ""
+		}
+	}
+
+	// 填充数据
+	for colIdx, col := range cols {
+		for rowIdx, val := range col {
+			rows[rowIdx][colIdx] = val
+		}
+	}
+
+	return rows
 }
