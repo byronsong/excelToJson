@@ -86,7 +86,7 @@ func validateTypes(sheetData *merger.SheetRows) error {
 				continue // 空值跳过
 			}
 
-			if err := validateCellType(cellValue, field, schemaInfo, rowIdx+4, colIdx+1); err != nil {
+			if err := validateCellType(cellValue, field, schemaInfo, rowIdx+schemaInfo.DataStartRow, colIdx+1); err != nil {
 				return err
 			}
 		}

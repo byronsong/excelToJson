@@ -54,7 +54,7 @@ func Build(classData *merger.ClassData) ([]map[string]interface{}, error) {
 				if err != nil {
 					return nil, fmt.Errorf("%s / %s / 行%d / 列%d (%s): %v",
 						schemaInfo.FileName, schemaInfo.SheetName,
-						rowIdx+4, colIdx+1, field.FieldName, err)
+						rowIdx+schemaInfo.DataStartRow, colIdx+1, field.FieldName, err)
 				}
 				rowMap[field.FieldName] = val
 			}
