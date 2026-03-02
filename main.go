@@ -82,8 +82,10 @@ func run(cfg *config.Config) error {
 		fmt.Println("[INFO] 构建数据...")
 	}
 	for className, data := range classData {
-		pkIndex := merger.FindPKIndex(data.Schema.Fields, cfg.PK)
-		merger.SortRows(data, pkIndex)
+		// 每个 Sheet 分别排序
+		for _, sheetData := range data.SheetData {
+			merger.SortRowsByRows(sheetData.Rows, sheetData.Schema.Fields, cfg.PK)
+		}
 
 		rows, err := builder.Build(data)
 		if err != nil {

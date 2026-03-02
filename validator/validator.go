@@ -12,44 +12,53 @@ import (
 // Validate 校验数据合法性
 func Validate(data map[string]*merger.ClassData, pkName string) error {
 	for className, classData := range data {
-		// 查找主键索引
-		pkIndex := merger.FindPKIndex(classData.Schema.Fields, pkName)
-		if pkIndex < 0 {
-			return fmt.Errorf("%s: 未找到主键字段 '%s'", className, pkName)
-		}
+		// 遍历每个 Sheet 的数据
+		for _, sheetData := range classData.SheetData {
+			sheetSchema := sheetData.Schema
 
-		// 检查 ID 唯一性
-		idSet := make(map[string]int) // value -> row index (1-based)
-		// 找到主键字段定义
-		var pkField schema.FieldDef
-		for _, f := range classData.Schema.Fields {
-			if f.FieldName == pkName {
-				pkField = f
-				break
+			// 查找主键字段
+			var pkField schema.FieldDef
+			pkIndex := -1
+			for i, f := range sheetSchema.Fields {
+				if f.FieldName == pkName {
+					pkField = f
+					pkIndex = i
+					break
+				}
 			}
-		}
-		pkColIndex := pkField.ColIndex // 实际的列索引
-
-		for rowIdx, row := range classData.Rows {
-			if pkColIndex >= len(row) {
-				continue
-			}
-			pkValue := strings.TrimSpace(row[pkColIndex])
-			if pkValue == "" {
-				continue
+			if pkIndex < 0 {
+				return fmt.Errorf("%s: 未找到主键字段 '%s'", className, pkName)
 			}
 
-			if existingIdx, exists := idSet[pkValue]; exists {
-				return fmt.Errorf("%s / %s / 行%d / 列%d (id): 主键重复，值 %s 已在行%d 出现",
-					classData.Schema.FileName, classData.Schema.SheetName,
-					rowIdx+4, pkColIndex+1, pkValue, existingIdx+4)
-			}
-			idSet[pkValue] = rowIdx
-		}
+			pkColIndex := pkField.ColIndex // 实际的列索引
 
-		// 检查类型合法性
-		if err := validateTypes(classData, pkIndex); err != nil {
-			return err
+			// 检查 ID 唯一性（全局检查，跨所有 Sheet）
+			idSet := make(map[string]int) // value -> row index (1-based)
+
+			// 收集所有 Sheet 的 ID
+			for _, sd := range classData.SheetData {
+				for rowIdx, row := range sd.Rows {
+					if pkColIndex >= len(row) {
+						continue
+					}
+					pkValue := strings.TrimSpace(row[pkColIndex])
+					if pkValue == "" {
+						continue
+					}
+
+					if existingIdx, exists := idSet[pkValue]; exists {
+						return fmt.Errorf("%s / %s / 行%d / 列%d (id): 主键重复，值 %s 已在行%d 出现",
+							sheetSchema.FileName, sheetSchema.SheetName,
+							rowIdx+4, pkColIndex+1, pkValue, existingIdx+4)
+					}
+					idSet[pkValue] = rowIdx
+				}
+			}
+
+			// 检查类型合法性
+			if err := validateTypes(sheetData); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -57,10 +66,11 @@ func Validate(data map[string]*merger.ClassData, pkName string) error {
 }
 
 // validateTypes 检查字段类型是否合法
-func validateTypes(classData *merger.ClassData, pkIndex int) error {
-	fields := classData.Schema.Fields
+func validateTypes(sheetData *merger.SheetRows) error {
+	fields := sheetData.Schema.Fields
+	schemaInfo := sheetData.Schema
 
-	for rowIdx, row := range classData.Rows {
+	for rowIdx, row := range sheetData.Rows {
 		for _, field := range fields {
 			if field.Ignored {
 				continue
@@ -76,7 +86,7 @@ func validateTypes(classData *merger.ClassData, pkIndex int) error {
 				continue // 空值跳过
 			}
 
-			if err := validateCellType(cellValue, field, classData.Schema, rowIdx+4, colIdx+1); err != nil {
+			if err := validateCellType(cellValue, field, schemaInfo, rowIdx+4, colIdx+1); err != nil {
 				return err
 			}
 		}

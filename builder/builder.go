@@ -10,53 +10,58 @@ import (
 )
 
 // Build 将数据行转换为 Go map
+// 每个 Sheet 使用自己的字段定义
 func Build(classData *merger.ClassData) ([]map[string]interface{}, error) {
-	result := make([]map[string]interface{}, 0, len(classData.Rows))
+	result := make([]map[string]interface{}, 0)
 
-	fields := classData.Schema.Fields
+	// 遍历每个 Sheet
+	for _, sheetData := range classData.SheetData {
+		fields := sheetData.Schema.Fields
+		schemaInfo := sheetData.Schema
 
-	for rowIdx, row := range classData.Rows {
-		rowMap := make(map[string]interface{})
+		for rowIdx, row := range sheetData.Rows {
+			rowMap := make(map[string]interface{})
 
-		for _, field := range fields {
-			if field.Ignored {
-				continue
-			}
-
-			// 使用 field.ColIndex 获取实际的列索引
-			colIdx := field.ColIndex
-
-			// 处理嵌套字段
-			if isNestedField(field.FieldName) {
-				if err := buildNestedField(rowMap, field, row, colIdx, classData.Schema, rowIdx); err != nil {
-					return nil, err
+			for _, field := range fields {
+				if field.Ignored {
+					continue
 				}
-				continue
+
+				// 使用 field.ColIndex 获取实际的列索引
+				colIdx := field.ColIndex
+
+				// 处理嵌套字段
+				if isNestedField(field.FieldName) {
+					if err := buildNestedField(rowMap, field, row, colIdx, schemaInfo, rowIdx); err != nil {
+						return nil, err
+					}
+					continue
+				}
+
+				// 普通字段
+				if colIdx >= len(row) {
+					// 空单元格，使用默认值
+					rowMap[field.FieldName] = getDefaultValue(field.FieldType)
+					continue
+				}
+
+				cellValue := strings.TrimSpace(row[colIdx])
+				if cellValue == "" {
+					rowMap[field.FieldName] = getDefaultValue(field.FieldType)
+					continue
+				}
+
+				val, err := convertValue(cellValue, field.FieldType)
+				if err != nil {
+					return nil, fmt.Errorf("%s / %s / 行%d / 列%d (%s): %v",
+						schemaInfo.FileName, schemaInfo.SheetName,
+						rowIdx+4, colIdx+1, field.FieldName, err)
+				}
+				rowMap[field.FieldName] = val
 			}
 
-			// 普通字段
-			if colIdx >= len(row) {
-				// 空单元格，使用默认值
-				rowMap[field.FieldName] = getDefaultValue(field.FieldType)
-				continue
-			}
-
-			cellValue := strings.TrimSpace(row[colIdx])
-			if cellValue == "" {
-				rowMap[field.FieldName] = getDefaultValue(field.FieldType)
-				continue
-			}
-
-			val, err := convertValue(cellValue, field.FieldType)
-			if err != nil {
-				return nil, fmt.Errorf("%s / %s / 行%d / 列%d (%s): %v",
-					classData.Schema.FileName, classData.Schema.SheetName,
-					rowIdx+4, colIdx+1, field.FieldName, err)
-			}
-			rowMap[field.FieldName] = val
+			result = append(result, rowMap)
 		}
-
-		result = append(result, rowMap)
 	}
 
 	return result, nil

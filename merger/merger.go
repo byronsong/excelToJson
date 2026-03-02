@@ -1,7 +1,6 @@
 package merger
 
 import (
-	"fmt"
 	"sort"
 
 	"xlsxtojson/schema"
@@ -10,9 +9,14 @@ import (
 // ClassData 合并后的一个 Class 完整数据
 type ClassData struct {
 	ClassName   string
-	Schema      *schema.SheetSchema // 字段定义以第一个 Sheet 为准
-	Rows        [][]string          // 合并后的所有数据行（原始字符串）
-	ParsedRows  []map[string]interface{} // 解析后的数据行
+	SheetData   []*SheetRows // 每个 Sheet 的数据和字段定义
+	ParsedRows  []map[string]interface{} // 解析后的数据行（最终输出）
+}
+
+// SheetRows 每个 Sheet 的数据
+type SheetRows struct {
+	Schema *schema.SheetSchema // 该 Sheet 的字段定义
+	Rows   [][]string         // 该 Sheet 的数据行
 }
 
 // Merge 按 ClassName 分组，将多 Sheet 数据行合并
@@ -23,57 +27,26 @@ func Merge(schemas []*schema.SheetSchema) (map[string]*ClassData, error) {
 		className := s.ClassName
 
 		if existing, ok := classMap[className]; ok {
-			// 检查字段定义是否一致
-			if !fieldsEqual(existing.Schema.Fields, s.Fields) {
-				return nil, fmt.Errorf("%s: 字段定义冲突，Sheet '%s' 与之前定义的字段不一致",
-					className, s.SheetName)
-			}
-			// 追加数据行
-			existing.Rows = append(existing.Rows, s.DataRows...)
+			// 添加新的 Sheet 数据（保留各自的字段定义）
+			existing.SheetData = append(existing.SheetData, &SheetRows{
+				Schema: s,
+				Rows:   s.DataRows,
+			})
 		} else {
 			// 新建 ClassData
 			classMap[className] = &ClassData{
 				ClassName: className,
-				Schema:    s,
-				Rows:      s.DataRows,
+				SheetData: []*SheetRows{
+					{
+						Schema: s,
+						Rows:   s.DataRows,
+					},
+				},
 			}
 		}
 	}
 
 	return classMap, nil
-}
-
-// fieldsEqual 比较两个字段列表是否完全一致
-func fieldsEqual(fields1, fields2 []schema.FieldDef) bool {
-	if len(fields1) != len(fields2) {
-		return false
-	}
-	for i := range fields1 {
-		if fields1[i].FieldName != fields2[i].FieldName ||
-			fields1[i].TypeStr != fields2[i].TypeStr {
-			return false
-		}
-	}
-	return true
-}
-
-// SortRows 按主键升序排列数据行
-func SortRows(data *ClassData, pkIndex int) {
-	if pkIndex < 0 {
-		return
-	}
-
-	sort.Slice(data.Rows, func(i, j int) bool {
-		// 获取主键值
-		var valI, valJ string
-		if pkIndex < len(data.Rows[i]) {
-			valI = data.Rows[i][pkIndex]
-		}
-		if pkIndex < len(data.Rows[j]) {
-			valJ = data.Rows[j][pkIndex]
-		}
-		return valI < valJ
-	})
 }
 
 // FindPKIndex 查找主键字段的列索引
@@ -84,4 +57,34 @@ func FindPKIndex(fields []schema.FieldDef, pkName string) int {
 		}
 	}
 	return -1
+}
+
+// FindPKColIndex 查找主键字段的实际列索引
+func FindPKColIndex(fields []schema.FieldDef, pkName string) int {
+	for _, f := range fields {
+		if f.FieldName == pkName {
+			return f.ColIndex
+		}
+	}
+	return -1
+}
+
+// SortRowsByRows 按主键升序排列数据行（使用字段定义的列索引）
+func SortRowsByRows(rows [][]string, fields []schema.FieldDef, pkName string) {
+	pkColIndex := FindPKColIndex(fields, pkName)
+	if pkColIndex < 0 {
+		return
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		// 获取主键值
+		var valI, valJ string
+		if pkColIndex < len(rows[i]) {
+			valI = rows[i][pkColIndex]
+		}
+		if pkColIndex < len(rows[j]) {
+			valJ = rows[j][pkColIndex]
+		}
+		return valI < valJ
+	})
 }
