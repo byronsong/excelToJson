@@ -1,0 +1,230 @@
+package validator
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"xlsxtojson/merger"
+	"xlsxtojson/schema"
+)
+
+// Validate 校验数据合法性
+func Validate(data map[string]*merger.ClassData, pkName string) error {
+	for className, classData := range data {
+		// 查找主键索引
+		pkIndex := merger.FindPKIndex(classData.Schema.Fields, pkName)
+		if pkIndex < 0 {
+			return fmt.Errorf("%s: 未找到主键字段 '%s'", className, pkName)
+		}
+
+		// 检查 ID 唯一性
+		idSet := make(map[string]int) // value -> row index (1-based)
+		for rowIdx, row := range classData.Rows {
+			if pkIndex >= len(row) {
+				continue
+			}
+			pkValue := strings.TrimSpace(row[pkIndex])
+			if pkValue == "" {
+				continue
+			}
+
+			if existingIdx, exists := idSet[pkValue]; exists {
+				return fmt.Errorf("%s.xlsx / %s / 行%d / 列%d (id): 主键重复，值 %s 已在行%d 出现",
+					classData.Schema.FileName, classData.Schema.SheetName,
+					rowIdx+4, pkIndex+1, pkValue, existingIdx+4)
+			}
+			idSet[pkValue] = rowIdx
+		}
+
+		// 检查类型合法性
+		if err := validateTypes(classData, pkIndex); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateTypes 检查字段类型是否合法
+func validateTypes(classData *merger.ClassData, pkIndex int) error {
+	fields := classData.Schema.Fields
+
+	for rowIdx, row := range classData.Rows {
+		for colIdx, field := range fields {
+			if field.Ignored {
+				continue
+			}
+			if colIdx >= len(row) {
+				continue
+			}
+
+			cellValue := strings.TrimSpace(row[colIdx])
+			if cellValue == "" {
+				continue // 空值跳过
+			}
+
+			if err := validateCellType(cellValue, field, classData.Schema, rowIdx+4, colIdx+1); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateCellType 检查单个单元格的值是否符合声明的类型
+func validateCellType(value string, field schema.FieldDef, schemaInfo *schema.SheetSchema, row, col int) error {
+	switch field.FieldType {
+	case schema.TypeInt:
+		if _, err := strconv.ParseInt(value, 10, 64); err != nil {
+			return fmt.Errorf("%s / %s / 行%d / 列%d (%s): 期望 int 类型，实际值 \"%s\"",
+				schemaInfo.FileName, schemaInfo.SheetName, row, col, field.FieldName, value)
+		}
+
+	case schema.TypeFloat:
+		if _, err := strconv.ParseFloat(value, 64); err != nil {
+			return fmt.Errorf("%s / %s / 行%d / 列%d (%s): 期望 float 类型，实际值 \"%s\"",
+				schemaInfo.FileName, schemaInfo.SheetName, row, col, field.FieldName, value)
+		}
+
+	case schema.TypeBool:
+		if !isValidBool(value) {
+			return fmt.Errorf("%s / %s / 行%d / 列%d (%s): 期望 bool 类型，实际值 \"%s\"",
+				schemaInfo.FileName, schemaInfo.SheetName, row, col, field.FieldName, value)
+		}
+
+	case schema.TypeIntSlice:
+		if err := validateIntSlice(value); err != nil {
+			return fmt.Errorf("%s / %s / 行%d / 列%d (%s): %s",
+				schemaInfo.FileName, schemaInfo.SheetName, row, col, field.FieldName, err.Error())
+		}
+
+	case schema.TypeFloatSlice:
+		if err := validateFloatSlice(value); err != nil {
+			return fmt.Errorf("%s / %s / 行%d / 列%d (%s): %s",
+				schemaInfo.FileName, schemaInfo.SheetName, row, col, field.FieldName, err.Error())
+		}
+
+	case schema.TypeStringSlice:
+		if err := validateStringSlice(value); err != nil {
+			return fmt.Errorf("%s / %s / 行%d / 列%d (%s): %s",
+				schemaInfo.FileName, schemaInfo.SheetName, row, col, field.FieldName, err.Error())
+		}
+
+	case schema.TypeIntMap:
+		if err := validateIntMap(value); err != nil {
+			return fmt.Errorf("%s / %s / 行%d / 列%d (%s): %s",
+				schemaInfo.FileName, schemaInfo.SheetName, row, col, field.FieldName, err.Error())
+		}
+
+	case schema.TypeStringMap:
+		if err := validateStringMap(value); err != nil {
+			return fmt.Errorf("%s / %s / 行%d / 列%d (%s): %s",
+				schemaInfo.FileName, schemaInfo.SheetName, row, col, field.FieldName, err.Error())
+		}
+	}
+
+	return nil
+}
+
+// isValidBool 检查是否为合法的布尔值
+func isValidBool(value string) bool {
+	lower := strings.ToLower(value)
+	return lower == "true" || lower == "false" || value == "1" || value == "0" ||
+		lower == "是" || lower == "否" || lower == "yes" || lower == "no"
+}
+
+// validateIntSlice 验证整数数组格式
+func validateIntSlice(value string) error {
+	parts := strings.Split(value, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if _, err := strconv.ParseInt(part, 10, 64); err != nil {
+			return fmt.Errorf("期望 []int 类型，实际值 \"%s\" 无法解析为整数", value)
+		}
+	}
+	return nil
+}
+
+// validateFloatSlice 验证浮点数数组格式
+func validateFloatSlice(value string) error {
+	parts := strings.Split(value, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if _, err := strconv.ParseFloat(part, 64); err != nil {
+			return fmt.Errorf("期望 []float 类型，实际值 \"%s\" 无法解析为浮点数", value)
+		}
+	}
+	return nil
+}
+
+// validateStringSlice 验证字符串数组格式
+func validateStringSlice(value string) error {
+	// 字符串数组格式为 "a,b,c"，每个元素用引号包裹
+	parts := strings.Split(value, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		// 检查是否以引号开头和结尾
+		if !strings.HasPrefix(part, "\"") || !strings.HasSuffix(part, "\"") {
+			return fmt.Errorf("期望 []string 类型，实际值 \"%s\" 格式错误（元素需用引号包裹）", value)
+		}
+	}
+	return nil
+}
+
+// validateIntMap 验证整数 Map 格式
+func validateIntMap(value string) error {
+	if value == "" {
+		return nil
+	}
+	pairs := strings.Split(value, ";")
+	for _, pair := range pairs {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		kv := strings.Split(pair, ":")
+		if len(kv) != 2 {
+			return fmt.Errorf("期望 map<int,int> 类型，实际值 \"%s\" 格式错误（应为 k:v;k:v）", value)
+		}
+		if _, err := strconv.ParseInt(strings.TrimSpace(kv[0]), 10, 64); err != nil {
+			return fmt.Errorf("期望 map<int,int> 类型，实际值 \"%s\" 的键无法解析为整数", value)
+		}
+		if _, err := strconv.ParseInt(strings.TrimSpace(kv[1]), 10, 64); err != nil {
+			return fmt.Errorf("期望 map<int,int> 类型，实际值 \"%s\" 的值无法解析为整数", value)
+		}
+	}
+	return nil
+}
+
+// validateStringMap 验证字符串 Map 格式
+func validateStringMap(value string) error {
+	if value == "" {
+		return nil
+	}
+	pairs := strings.Split(value, ";")
+	for _, pair := range pairs {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		kv := strings.Split(pair, ":")
+		if len(kv) != 2 {
+			return fmt.Errorf("期望 map<string,int> 类型，实际值 \"%s\" 格式错误（应为 k:v;k:v）", value)
+		}
+		if _, err := strconv.ParseInt(strings.TrimSpace(kv[1]), 10, 64); err != nil {
+			return fmt.Errorf("期望 map<string,int> 类型，实际值 \"%s\" 的值无法解析为整数", value)
+		}
+	}
+	return nil
+}

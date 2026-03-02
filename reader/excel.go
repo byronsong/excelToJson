@@ -1,0 +1,115 @@
+package reader
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"xlsxtojson/schema"
+
+	"github.com/xuri/excelize/v2"
+)
+
+// ReadExcel 读取 Excel 文件并解析所有 Sheet
+func ReadExcel(filePath string) ([]*schema.SheetSchema, error) {
+	f, err := excelize.OpenFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("打开文件失败: %w", err)
+	}
+	defer f.Close()
+
+	sheets := f.GetSheetList()
+	fileName := filepath.Base(filePath)
+
+	var schemas []*schema.SheetSchema
+
+	for _, sheetName := range sheets {
+		// 读取整个 Sheet 的数据
+		rows, err := f.GetRows(sheetName)
+		if err != nil {
+			return nil, fmt.Errorf("%s / %s: 读取Sheet失败: %w", fileName, sheetName, err)
+		}
+
+		// 跳过空 Sheet
+		if len(rows) == 0 {
+			continue
+		}
+
+		// 解析表头
+		schema, err := schema.ParseHeader(rows, fileName, sheetName)
+		if err != nil {
+			// 如果是 A1 为空的警告，返回 nil 而不是 error
+			if strings.Contains(err.Error(), "A1 为空") {
+				fmt.Printf("[WARN] %s\n", err.Error())
+				continue
+			}
+			return nil, err
+		}
+
+		schemas = append(schemas, schema)
+	}
+
+	return schemas, nil
+}
+
+// ScanDirectory 扫描目录下所有 xlsx 文件
+func ScanDirectory(dirPath string) ([]string, error) {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return nil, fmt.Errorf("读取目录失败: %w", err)
+	}
+
+	var files []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(strings.ToLower(entry.Name()), ".xlsx") {
+			files = append(files, filepath.Join(dirPath, entry.Name()))
+		}
+	}
+
+	return files, nil
+}
+
+// ReadAll 读取输入路径下的所有 Excel 文件
+func ReadAll(inputPath string) ([]*schema.SheetSchema, error) {
+	var allSchemas []*schema.SheetSchema
+
+	info, err := os.Stat(inputPath)
+	if err != nil {
+		return nil, fmt.Errorf("输入路径不存在: %w", err)
+	}
+
+	if info.IsDir() {
+		// 是目录，扫描所有 xlsx 文件
+		files, err := ScanDirectory(inputPath)
+		if err != nil {
+			return nil, err
+		}
+		if len(files) == 0 {
+			return nil, fmt.Errorf("目录中没有找到 .xlsx 文件: %s", inputPath)
+		}
+
+		for _, file := range files {
+			schemas, err := ReadExcel(file)
+			if err != nil {
+				return nil, err
+			}
+			allSchemas = append(allSchemas, schemas...)
+		}
+	} else {
+		// 是单个文件
+		if !strings.HasSuffix(strings.ToLower(info.Name()), ".xlsx") {
+			return nil, fmt.Errorf("输入文件不是 .xlsx 格式: %s", info.Name())
+		}
+		schemas, err := ReadExcel(inputPath)
+		if err != nil {
+			return nil, err
+		}
+		allSchemas = append(allSchemas, schemas...)
+	}
+
+	return allSchemas, nil
+}
