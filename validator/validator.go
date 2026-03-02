@@ -20,19 +20,29 @@ func Validate(data map[string]*merger.ClassData, pkName string) error {
 
 		// 检查 ID 唯一性
 		idSet := make(map[string]int) // value -> row index (1-based)
+		// 找到主键字段定义
+		var pkField schema.FieldDef
+		for _, f := range classData.Schema.Fields {
+			if f.FieldName == pkName {
+				pkField = f
+				break
+			}
+		}
+		pkColIndex := pkField.ColIndex // 实际的列索引
+
 		for rowIdx, row := range classData.Rows {
-			if pkIndex >= len(row) {
+			if pkColIndex >= len(row) {
 				continue
 			}
-			pkValue := strings.TrimSpace(row[pkIndex])
+			pkValue := strings.TrimSpace(row[pkColIndex])
 			if pkValue == "" {
 				continue
 			}
 
 			if existingIdx, exists := idSet[pkValue]; exists {
-				return fmt.Errorf("%s.xlsx / %s / 行%d / 列%d (id): 主键重复，值 %s 已在行%d 出现",
+				return fmt.Errorf("%s / %s / 行%d / 列%d (id): 主键重复，值 %s 已在行%d 出现",
 					classData.Schema.FileName, classData.Schema.SheetName,
-					rowIdx+4, pkIndex+1, pkValue, existingIdx+4)
+					rowIdx+4, pkColIndex+1, pkValue, existingIdx+4)
 			}
 			idSet[pkValue] = rowIdx
 		}
