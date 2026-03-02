@@ -111,8 +111,14 @@ func SetValueByPath(data map[string]interface{}, segments []PathSegment, value i
 				current[key] = arr
 			}
 			// 扩展数组 if needed
+			extended := false
 			for len(arr) <= seg.ArrayIdx {
 				arr = append(arr, nil)
+				extended = true
+			}
+			// 如果数组被扩展了，需要更新 map 中的引用
+			if extended {
+				current[key] = arr
 			}
 			if arr[seg.ArrayIdx] == nil {
 				// 创建下一层
@@ -156,12 +162,19 @@ func SetValueByPath(data map[string]interface{}, segments []PathSegment, value i
 		if !ok {
 			// 如果不存在或类型不对，创建新的数组
 			arr = make([]interface{}, 0)
+			current[key] = arr
 		}
+		// 扩展数组 if needed
+		extended := false
 		for len(arr) <= lastSeg.ArrayIdx {
 			arr = append(arr, nil)
+			extended = true
+		}
+		// 如果数组被扩展了，需要更新 map 中的引用
+		if extended {
+			current[key] = arr
 		}
 		arr[lastSeg.ArrayIdx] = value
-		current[key] = arr
 	} else if lastSeg.IsMap {
 		m := current[key].(map[int]interface{})
 		m[lastSeg.MapKey] = value
