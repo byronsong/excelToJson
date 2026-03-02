@@ -68,8 +68,13 @@ func ScanDirectory(dirPath string) ([]string, error) {
 		if entry.IsDir() {
 			continue
 		}
-		if strings.HasSuffix(strings.ToLower(entry.Name()), ".xlsx") {
-			files = append(files, filepath.Join(dirPath, entry.Name()))
+		name := entry.Name()
+		// 排除临时文件（Excel 临时文件以 ~$ 开头）
+		if strings.HasPrefix(name, "~$") {
+			continue
+		}
+		if strings.HasSuffix(strings.ToLower(name), ".xlsx") {
+			files = append(files, filepath.Join(dirPath, name))
 		}
 	}
 
