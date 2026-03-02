@@ -40,14 +40,13 @@ func Build(classData *merger.ClassData) ([]map[string]interface{}, error) {
 
 				// 普通字段
 				if colIdx >= len(row) {
-					// 空单元格，使用默认值
-					rowMap[field.FieldName] = getDefaultValue(field.FieldType)
+					// 空单元格，不输出该字段
 					continue
 				}
 
 				cellValue := strings.TrimSpace(row[colIdx])
 				if cellValue == "" {
-					rowMap[field.FieldName] = getDefaultValue(field.FieldType)
+					// 空单元格，不输出该字段
 					continue
 				}
 
@@ -59,6 +58,9 @@ func Build(classData *merger.ClassData) ([]map[string]interface{}, error) {
 				}
 				rowMap[field.FieldName] = val
 			}
+
+			// 过滤空数组元素
+			rowMap = filterEmptyArrays(rowMap)
 
 			result = append(result, rowMap)
 		}
@@ -81,9 +83,8 @@ func buildNestedField(rowMap map[string]interface{}, field schema.FieldDef, row 
 
 	cellValue := strings.TrimSpace(row[colIdx])
 	if cellValue == "" {
-		// 空单元格，设置为默认值
-		defaultVal := getDefaultValue(field.FieldType)
-		return SetValueByPath(rowMap, segments, defaultVal)
+		// 空单元格，不设置任何值
+		return nil
 	}
 
 	val, err := convertValue(cellValue, field.FieldType)
@@ -103,7 +104,41 @@ func isNestedField(fieldName string) bool {
 		strings.Contains(fieldName, "{")
 }
 
-// getDefaultValue 获取类型的默认值
+// filterEmptyArrays 过滤掉数组中的空元素
+func filterEmptyArrays(rowMap map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+
+	for k, v := range rowMap {
+		// 处理数组类型
+		if arr, ok := v.([]interface{}); ok {
+			// 过滤空元素
+			filtered := make([]interface{}, 0)
+			for _, item := range arr {
+				if item == nil {
+					continue
+				}
+				// 如果是 map，检查是否为空
+				if m, ok := item.(map[string]interface{}); ok {
+					if len(m) == 0 {
+						continue
+					}
+				}
+				filtered = append(filtered, item)
+			}
+			// 如果过滤后为空，不添加
+			if len(filtered) == 0 {
+				continue
+			}
+			result[k] = filtered
+		} else {
+			result[k] = v
+		}
+	}
+
+	return result
+}
+
+// getDefaultValue 获取类型的默认值（已弃用，不再使用）
 func getDefaultValue(fieldType schema.FieldType) interface{} {
 	switch fieldType {
 	case schema.TypeInt, schema.TypeFloat:
