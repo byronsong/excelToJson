@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"xlsxtojson/util"
+
 	"github.com/xuri/excelize/v2"
 )
 
@@ -12,7 +14,7 @@ func ParseClassConfig(f *excelize.File, fileName string) (map[string]*ClassMeta,
 	// 查找 __ClassConfig Sheet
 	sheetName := ""
 	for _, name := range f.GetSheetList() {
-		if name == "__ClassConfig" {
+		if name == ClassConfigSheetName {
 			sheetName = name
 			break
 		}
@@ -30,7 +32,7 @@ func ParseClassConfig(f *excelize.File, fileName string) (map[string]*ClassMeta,
 	}
 
 	// 转换为行数据
-	rows = transpose(rows)
+	rows = util.Transpose(rows)
 
 	if len(rows) < 4 {
 		// 没有数据行
@@ -178,6 +180,7 @@ func ParseClassConfig(f *excelize.File, fileName string) (map[string]*ClassMeta,
 			SortFields:    sortFields,
 			SheetNameAs:   sheetNameAs,
 			SheetNameType: sheetNameType,
+			SourceFile:    fileName,
 		}
 	}
 
@@ -189,39 +192,9 @@ func isValidFieldType(typeStr string) bool {
 	switch typeStr {
 	case "int", "int64", "float", "float64", "string", "bool",
 		"[]int", "[]float", "[]string",
-		"map<int,int>", "map<int,float>", "map<string,int>":
+		"map<int,int>", "map<int,float>", "map<string,int>", "map<int,string>":
 		return true
 	default:
 		return false
 	}
-}
-
-// transpose 将列数据转换为行数据
-func transpose(cols [][]string) [][]string {
-	if len(cols) == 0 {
-		return [][]string{}
-	}
-
-	maxRows := 0
-	for _, col := range cols {
-		if len(col) > maxRows {
-			maxRows = len(col)
-		}
-	}
-
-	rows := make([][]string, maxRows)
-	for i := range rows {
-		rows[i] = make([]string, len(cols))
-		for j := range rows[i] {
-			rows[i][j] = ""
-		}
-	}
-
-	for colIdx, col := range cols {
-		for rowIdx, val := range col {
-			rows[rowIdx][colIdx] = val
-		}
-	}
-
-	return rows
 }

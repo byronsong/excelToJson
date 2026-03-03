@@ -37,7 +37,7 @@ func ParseHeader(rows [][]string, fileName, sheetName string) (*SheetSchema, err
 	// 查找 A 列值为 "Server" 的行
 	fieldNameRowIdx := -1
 	for i, row := range rows {
-		if len(row) > 0 && strings.TrimSpace(row[0]) == "Server" {
+		if len(row) > 0 && strings.TrimSpace(row[0]) == ServerMarker {
 			fieldNameRowIdx = i
 			break
 		}

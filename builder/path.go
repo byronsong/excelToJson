@@ -7,6 +7,12 @@ import (
 	"strings"
 )
 
+// MaxArrayIndex 数组索引的最大值，防止恶意输入导致 OOM
+const MaxArrayIndex = 1000
+
+// MaxMapKey Map 键的最大值，防止恶意输入导致 OOM
+const MaxMapKey = 1000
+
 // PathSegment 路径段
 type PathSegment struct {
 	Name     string // 字段名
@@ -111,6 +117,9 @@ func SetValueByPath(data map[string]interface{}, segments []PathSegment, value i
 				current[key] = arr
 			}
 			// 扩展数组 if needed
+			if seg.ArrayIdx > MaxArrayIndex {
+				return fmt.Errorf("数组索引 %d 超过最大值 %d", seg.ArrayIdx, MaxArrayIndex)
+			}
 			extended := false
 			for len(arr) <= seg.ArrayIdx {
 				arr = append(arr, nil)
@@ -132,6 +141,10 @@ func SetValueByPath(data map[string]interface{}, segments []PathSegment, value i
 			}
 			current = arr[seg.ArrayIdx].(map[string]interface{})
 		} else if seg.IsMap {
+			// 检查 Map 键是否超出最大值
+			if seg.MapKey > MaxMapKey {
+				return fmt.Errorf("Map键 %d 超过最大值 %d", seg.MapKey, MaxMapKey)
+			}
 			m := current[key].(map[int]interface{})
 			if _, exists := m[seg.MapKey]; !exists {
 				if nextSeg.IsArray {
@@ -165,6 +178,9 @@ func SetValueByPath(data map[string]interface{}, segments []PathSegment, value i
 			current[key] = arr
 		}
 		// 扩展数组 if needed
+		if lastSeg.ArrayIdx > MaxArrayIndex {
+			return fmt.Errorf("数组索引 %d 超过最大值 %d", lastSeg.ArrayIdx, MaxArrayIndex)
+		}
 		extended := false
 		for len(arr) <= lastSeg.ArrayIdx {
 			arr = append(arr, nil)

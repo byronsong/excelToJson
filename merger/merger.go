@@ -1,7 +1,9 @@
 package merger
 
 import (
+	"fmt"
 	"sort"
+	"strconv"
 
 	"xlsxtojson/classconfig"
 	"xlsxtojson/schema"
@@ -91,6 +93,8 @@ func SortRowsByRows(rows [][]string, fields []schema.FieldDef, pkType classconfi
 		if len(pkFields) > 0 {
 			pkColIndex := FindPKColIndex(fields, pkFields[0])
 			if pkColIndex >= 0 {
+				// 获取主键字段的类型
+				pkFieldType := getFieldType(fields, pkFields[0])
 				sort.Slice(rows, func(i, j int) bool {
 					var valI, valJ string
 					if pkColIndex < len(rows[i]) {
@@ -99,7 +103,8 @@ func SortRowsByRows(rows [][]string, fields []schema.FieldDef, pkType classconfi
 					if pkColIndex < len(rows[j]) {
 						valJ = rows[j][pkColIndex]
 					}
-					return valI < valJ
+					// 根据字段类型进行数值比较
+					return compareValues(valI, valJ, pkFieldType)
 				})
 			}
 		}
@@ -126,7 +131,9 @@ func SortRowsByRows(rows [][]string, fields []schema.FieldDef, pkType classconfi
 						valJ = rows[j][colIndex]
 					}
 					if valI != valJ {
-						return valI < valJ
+						// 根据字段类型进行数值比较
+						sfType := getFieldType(fields, sf)
+						return compareValues(valI, valJ, sfType)
 					}
 				}
 				return false
@@ -134,4 +141,58 @@ func SortRowsByRows(rows [][]string, fields []schema.FieldDef, pkType classconfi
 		}
 		// 如果没有 sortFields，保持原顺序（不做操作）
 	}
+}
+
+// getFieldType 根据字段名获取字段类型
+func getFieldType(fields []schema.FieldDef, fieldName string) schema.FieldType {
+	for _, f := range fields {
+		if f.FieldName == fieldName {
+			return f.FieldType
+		}
+	}
+	return schema.TypeUnknown
+}
+
+// compareValues 根据字段类型比较两个值
+// 对于数值类型进行数值比较，对于字符串类型进行字符串比较
+func compareValues(valI, valJ string, fieldType schema.FieldType) bool {
+	switch fieldType {
+	case schema.TypeInt, schema.TypeFloat:
+		// 数值比较
+		return compareNumeric(valI, valJ)
+	default:
+		// 字符串比较
+		return valI < valJ
+	}
+}
+
+// compareNumeric 比较两个数值字符串
+func compareNumeric(valI, valJ string) bool {
+	// 先尝试解析为 int64
+	if intI, errI := parseNumeric(valI); errI == nil {
+		if intJ, errJ := parseNumeric(valJ); errJ == nil {
+			return intI < intJ
+		}
+	}
+	// 如果无法解析为整数，尝试解析为 float
+	floatI, errI := strconv.ParseFloat(valI, 64)
+	floatJ, errJ := strconv.ParseFloat(valJ, 64)
+	if errI == nil && errJ == nil {
+		return floatI < floatJ
+	}
+	// 都失败则使用字符串比较
+	return valI < valJ
+}
+
+// parseNumeric 尝试解析为整数
+func parseNumeric(val string) (int64, error) {
+	// 先尝试直接解析
+	if v, err := strconv.ParseInt(val, 10, 64); err == nil {
+		return v, nil
+	}
+	// 尝试解析为 float 再转换为 int
+	if f, err := strconv.ParseFloat(val, 64); err == nil {
+		return int64(f), nil
+	}
+	return 0, fmt.Errorf("not a number")
 }

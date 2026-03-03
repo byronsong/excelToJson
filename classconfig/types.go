@@ -1,5 +1,10 @@
 package classconfig
 
+// 常量定义
+const (
+	ClassConfigSheetName = "__ClassConfig" // 配置表 Sheet 名称
+)
+
 // PkType 主键类型枚举
 type PkType string
 
@@ -17,6 +22,7 @@ type ClassMeta struct {
 	SortFields    []string // 排序字段（none 模式下使用）
 	SheetNameAs   string   // 将 SheetName 注入为该字段名（空字符串表示不注入）
 	SheetNameType string   // SheetNameAs 对应的类型声明（如 "int"、"string"）
+	SourceFile    string   // 来源文件名（用于错误定位）
 }
 
 // GetDefaultMeta 获取默认的 ClassMeta（当没有 __ClassConfig 时使用）

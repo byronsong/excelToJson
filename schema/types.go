@@ -1,5 +1,13 @@
 package schema
 
+// 常量定义
+const (
+	ServerMarker = "Server" // A列中标识 FieldName 行的标记
+	TypeMarker   = "Type"   // A列中标识类型行的标记
+	ClientMarker = "Client" // A列中标识客户端字段名行的标记（可选）
+	ClassNameCell = "ClassName" // A1单元格的值，表示Class名称
+)
+
 // FieldType 字段类型枚举
 type FieldType int
 
@@ -15,6 +23,7 @@ const (
 	TypeIntMap
 	TypeFloatMap
 	TypeStringMap
+	TypeIntStringMap // map<int, string>
 	TypeStruct
 	TypeStructSlice
 	TypeStructMap
@@ -44,6 +53,8 @@ func (t FieldType) String() string {
 		return "map<int,float>"
 	case TypeStringMap:
 		return "map<string,int>"
+	case TypeIntStringMap:
+		return "map<int,string>"
 	case TypeStruct:
 		return "struct"
 	case TypeStructSlice:
@@ -80,6 +91,8 @@ func ParseFieldType(typeStr string) FieldType {
 		return TypeFloatMap
 	case "map<string,int>":
 		return TypeStringMap
+	case "map<int,string>":
+		return TypeIntStringMap
 	case "struct":
 		return TypeStruct
 	case "[]struct":

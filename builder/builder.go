@@ -145,7 +145,7 @@ func buildNestedField(rowMap map[string]interface{}, field schema.FieldDef, row 
 	if err != nil {
 		return fmt.Errorf("%s / %s / 行%d / 列%d (%s): %v",
 			schemaInfo.FileName, schemaInfo.SheetName,
-			rowIdx+4, colIdx+1, field.FieldName, err)
+			rowIdx+schemaInfo.DataStartRow, colIdx+1, field.FieldName, err)
 	}
 
 	return SetValueByPath(rowMap, segments, val)
@@ -192,30 +192,6 @@ func filterEmptyArrays(rowMap map[string]interface{}) map[string]interface{} {
 	return result
 }
 
-// getDefaultValue 获取类型的默认值（已弃用，不再使用）
-func getDefaultValue(fieldType schema.FieldType) interface{} {
-	switch fieldType {
-	case schema.TypeInt, schema.TypeFloat:
-		return 0
-	case schema.TypeString:
-		return ""
-	case schema.TypeBool:
-		return false
-	case schema.TypeIntSlice, schema.TypeFloatSlice, schema.TypeStringSlice:
-		return []interface{}{}
-	case schema.TypeIntMap, schema.TypeFloatMap, schema.TypeStringMap:
-		return map[string]interface{}{}
-	case schema.TypeStruct:
-		return map[string]interface{}{}
-	case schema.TypeStructSlice:
-		return []interface{}{}
-	case schema.TypeStructMap:
-		return map[string]interface{}{}
-	default:
-		return nil
-	}
-}
-
 // convertValue 将字符串值转换为指定类型
 func convertValue(value string, fieldType schema.FieldType) (interface{}, error) {
 	switch fieldType {
@@ -253,6 +229,8 @@ func convertValue(value string, fieldType schema.FieldType) (interface{}, error)
 		return parseIntMap(value)
 	case schema.TypeStringMap:
 		return parseStringMap(value)
+	case schema.TypeIntStringMap:
+		return parseIntStringMap(value)
 	}
 
 	return value, nil
@@ -382,6 +360,33 @@ func parseStringMap(value string) (map[string]interface{}, error) {
 			return nil, fmt.Errorf("期望 map<string,int> 类型，实际值 \"%s\" 的值无法解析为整数", value)
 		}
 		result[k] = vInt
+	}
+	return result, nil
+}
+
+// parseIntStringMap 解析 int->string Map
+func parseIntStringMap(value string) (map[int]interface{}, error) {
+	if value == "" {
+		return map[int]interface{}{}, nil
+	}
+	result := make(map[int]interface{})
+	pairs := strings.Split(value, ";")
+	for _, pair := range pairs {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		kv := strings.Split(pair, ":")
+		if len(kv) != 2 {
+			return nil, fmt.Errorf("期望 map<int,string> 类型，实际值 \"%s\" 格式错误", value)
+		}
+		k := strings.TrimSpace(kv[0])
+		v := strings.TrimSpace(kv[1])
+		kInt, err := strconv.ParseInt(k, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("期望 map<int,string> 类型，实际值 \"%s\" 的键无法解析为整数", value)
+		}
+		result[int(kInt)] = v
 	}
 	return result, nil
 }
