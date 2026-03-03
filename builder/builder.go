@@ -34,6 +34,11 @@ func Build(classData *merger.ClassData) ([]map[string]interface{}, error) {
 					continue
 				}
 
+				// 跳过没有 FieldName 的列（即使有类型也不导出）
+				if field.FieldName == "" {
+					continue
+				}
+
 				// 使用 field.ColIndex 获取实际的列索引
 				colIdx := field.ColIndex
 
