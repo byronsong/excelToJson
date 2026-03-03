@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"xlsxtojson/classconfig"
 	"xlsxtojson/merger"
 	"xlsxtojson/schema"
 )
@@ -14,10 +15,16 @@ import (
 func Build(classData *merger.ClassData) ([]map[string]interface{}, error) {
 	result := make([]map[string]interface{}, 0)
 
+	meta := classData.Meta
+	if meta == nil {
+		meta = classconfig.GetDefaultMeta(classData.ClassName)
+	}
+
 	// 遍历每个 Sheet
 	for _, sheetData := range classData.SheetData {
 		fields := sheetData.Schema.Fields
 		schemaInfo := sheetData.Schema
+		sheetName := sheetData.SheetName
 
 		for rowIdx, row := range sheetData.Rows {
 			rowMap := make(map[string]interface{})
@@ -62,11 +69,53 @@ func Build(classData *merger.ClassData) ([]map[string]interface{}, error) {
 			// 过滤空数组元素
 			rowMap = filterEmptyArrays(rowMap)
 
+			// 处理 SheetName 注入
+			if meta.SheetNameAs != "" && meta.SheetNameType != "" {
+				injectedValue, err := convertSheetName(sheetName, meta.SheetNameType, schemaInfo.FileName, schemaInfo.SheetName)
+				if err != nil {
+					return nil, err
+				}
+				rowMap[meta.SheetNameAs] = injectedValue
+			}
+
 			result = append(result, rowMap)
 		}
 	}
 
 	return result, nil
+}
+
+// convertSheetName 将 SheetName 转换为指定类型
+func convertSheetName(sheetName, typeStr, fileName, sheetNameForError string) (interface{}, error) {
+	fieldType := schema.ParseFieldType(typeStr)
+	switch fieldType {
+	case schema.TypeInt:
+		// 先尝试直接解析
+		if v, err := strconv.ParseInt(sheetName, 10, 64); err == nil {
+			return v, nil
+		}
+		// 如果失败，尝试解析为 float
+		if f, err := strconv.ParseFloat(sheetName, 64); err == nil {
+			return int64(f), nil
+		}
+		return nil, fmt.Errorf("%s / %s: SheetName 无法转换为 int 类型，实际值 \"%s\"",
+			fileName, sheetNameForError, sheetName)
+
+	case schema.TypeFloat:
+		v, err := strconv.ParseFloat(sheetName, 64)
+		if err != nil {
+			return nil, fmt.Errorf("%s / %s: SheetName 无法转换为 float 类型，实际值 \"%s\"",
+				fileName, sheetNameForError, sheetName)
+		}
+		return v, nil
+
+	case schema.TypeString:
+		return sheetName, nil
+
+	default:
+		return nil, fmt.Errorf("%s / %s: 不支持的 sheetNameType \"%s\"",
+			fileName, sheetNameForError, typeStr)
+	}
 }
 
 // buildNestedField 处理嵌套字段

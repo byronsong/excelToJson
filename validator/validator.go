@@ -5,53 +5,45 @@ import (
 	"strconv"
 	"strings"
 
+	"xlsxtojson/classconfig"
 	"xlsxtojson/merger"
 	"xlsxtojson/schema"
 )
 
 // Validate 校验数据合法性
-func Validate(data map[string]*merger.ClassData, pkName string) error {
+func Validate(data map[string]*merger.ClassData) error {
 	for className, classData := range data {
+		meta := classData.Meta
+		if meta == nil {
+			meta = classconfig.GetDefaultMeta(className)
+		}
+
 		// 遍历每个 Sheet 的数据
 		for _, sheetData := range classData.SheetData {
 			sheetSchema := sheetData.Schema
 
-			// 查找主键字段
-			var pkField schema.FieldDef
-			pkIndex := -1
-			for i, f := range sheetSchema.Fields {
-				if f.FieldName == pkName {
-					pkField = f
-					pkIndex = i
-					break
+			// 根据 pkType 进行不同的校验
+			switch meta.PkType {
+			case classconfig.PkTypeSingle:
+				// 单主键校验
+				if err := validateSinglePK(sheetData, classData, meta.PkFields[0]); err != nil {
+					return err
 				}
+
+			case classconfig.PkTypeComposite:
+				// 联合主键校验
+				if err := validateCompositePK(sheetData, classData, meta.PkFields); err != nil {
+					return err
+				}
+
+			case classconfig.PkTypeNone:
+				// 无主键，不做唯一性校验
 			}
-			if pkIndex < 0 {
-				return fmt.Errorf("%s: 未找到主键字段 '%s'", className, pkName)
-			}
 
-			pkColIndex := pkField.ColIndex // 实际的列索引
-
-			// 检查 ID 唯一性（全局检查，跨所有 Sheet）
-			idSet := make(map[string]int) // value -> row index (1-based)
-
-			// 收集所有 Sheet 的 ID
-			for _, sd := range classData.SheetData {
-				for rowIdx, row := range sd.Rows {
-					if pkColIndex >= len(row) {
-						continue
-					}
-					pkValue := strings.TrimSpace(row[pkColIndex])
-					if pkValue == "" {
-						continue
-					}
-
-					if existingIdx, exists := idSet[pkValue]; exists {
-						return fmt.Errorf("%s / %s / 行%d / 列%d (id): 主键重复，值 %s 已在行%d 出现",
-							sheetSchema.FileName, sheetSchema.SheetName,
-							rowIdx+4, pkColIndex+1, pkValue, existingIdx+4)
-					}
-					idSet[pkValue] = rowIdx
+			// 检查 sheetNameAs 字段名是否与业务表头冲突
+			if meta.SheetNameAs != "" {
+				if err := validateSheetNameAsConflict(sheetSchema, meta.SheetNameAs); err != nil {
+					return err
 				}
 			}
 
@@ -62,6 +54,120 @@ func Validate(data map[string]*merger.ClassData, pkName string) error {
 		}
 	}
 
+	return nil
+}
+
+// validateSinglePK 校验单主键唯一性
+func validateSinglePK(sheetData *merger.SheetRows, classData *merger.ClassData, pkName string) error {
+	sheetSchema := sheetData.Schema
+
+	// 查找主键字段
+	pkColIndex := -1
+	for _, f := range sheetSchema.Fields {
+		if f.FieldName == pkName {
+			pkColIndex = f.ColIndex
+			break
+		}
+	}
+	if pkColIndex < 0 {
+		return fmt.Errorf("%s: 未找到主键字段 '%s'", classData.ClassName, pkName)
+	}
+
+	// 检查 ID 唯一性（全局检查，跨所有 Sheet）
+	idSet := make(map[string]int) // value -> row index (1-based)
+
+	// 收集所有 Sheet 的 ID
+	for _, sd := range classData.SheetData {
+		for rowIdx, row := range sd.Rows {
+			if pkColIndex >= len(row) {
+				continue
+			}
+			pkValue := strings.TrimSpace(row[pkColIndex])
+			if pkValue == "" {
+				continue
+			}
+
+			if existingIdx, exists := idSet[pkValue]; exists {
+				return fmt.Errorf("%s / %s / 行%d / 列%d (id): 主键重复，值 %s 已在行%d 出现",
+					sheetSchema.FileName, sheetSchema.SheetName,
+					rowIdx+sheetSchema.DataStartRow, pkColIndex+1, pkValue, existingIdx+sheetSchema.DataStartRow)
+			}
+			idSet[pkValue] = rowIdx
+		}
+	}
+
+	return nil
+}
+
+// validateCompositePK 校验联合主键唯一性
+func validateCompositePK(sheetData *merger.SheetRows, classData *merger.ClassData, pkFields []string) error {
+	sheetSchema := sheetData.Schema
+
+	// 查找各主键字段的列索引
+	pkColIndexes := make([]int, len(pkFields))
+	for i, pf := range pkFields {
+		pkColIndexes[i] = -1
+		for _, f := range sheetSchema.Fields {
+			if f.FieldName == pf {
+				pkColIndexes[i] = f.ColIndex
+				break
+			}
+		}
+		if pkColIndexes[i] < 0 {
+			return fmt.Errorf("%s: 未找到联合主键字段 '%s'", classData.ClassName, pf)
+		}
+	}
+
+	// 检查联合主键唯一性
+	compositeKeySet := make(map[string]int) // composite key -> row index (1-based)
+
+	for _, sd := range classData.SheetData {
+		for rowIdx, row := range sd.Rows {
+			// 构建组合键
+			var keyParts []string
+			for _, colIdx := range pkColIndexes {
+				if colIdx >= len(row) {
+					keyParts = append(keyParts, "")
+				} else {
+					keyParts = append(keyParts, strings.TrimSpace(row[colIdx]))
+				}
+			}
+			// 跳过空行
+			allEmpty := true
+			for _, v := range keyParts {
+				if v != "" {
+					allEmpty = false
+					break
+				}
+			}
+			if allEmpty {
+				continue
+			}
+
+			compositeKey := strings.Join(keyParts, "|")
+			if existingIdx, exists := compositeKeySet[compositeKey]; exists {
+				// 显示组合键值
+				return fmt.Errorf("%s / %s / 行%d / (%s): 联合主键重复，值 (%s) 已在行%d 出现",
+					sheetSchema.FileName, sheetSchema.SheetName,
+					rowIdx+sheetSchema.DataStartRow,
+					strings.Join(pkFields, ","),
+					compositeKey, existingIdx+sheetSchema.DataStartRow)
+			}
+			compositeKeySet[compositeKey] = rowIdx
+		}
+	}
+
+	return nil
+}
+
+// validateSheetNameAsConflict 检查 sheetNameAs 是否与业务表头冲突
+func validateSheetNameAsConflict(sheetSchema *schema.SheetSchema, sheetNameAs string) error {
+	for _, f := range sheetSchema.Fields {
+		if f.FieldName == sheetNameAs {
+			return fmt.Errorf("%s / %s: sheetNameAs 字段名 '%s' 与业务表头已有字段冲突",
+				sheetSchema.FileName, sheetSchema.SheetName, sheetNameAs)
+		}
+	}
 	return nil
 }
 

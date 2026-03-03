@@ -39,26 +39,28 @@ func run(cfg *config.Config) error {
 	if cfg.Verbose {
 		fmt.Printf("[INFO] 输入路径: %s\n", cfg.Input)
 		fmt.Printf("[INFO] 输出路径: %s\n", cfg.Output)
-		fmt.Printf("[INFO] 主键字段: %s\n", cfg.PK)
 	}
 
 	// 1. 读取 Excel 文件
 	if cfg.Verbose {
 		fmt.Println("[INFO] 读取 Excel 文件...")
 	}
-	schemas, err := reader.ReadAll(cfg.Input)
+	schemas, classMetas, err := reader.ReadAll(cfg.Input)
 	if err != nil {
 		return fmt.Errorf("读取 Excel 文件失败: %w", err)
 	}
 	if cfg.Verbose {
 		fmt.Printf("[INFO] 共读取 %d 个 Sheet\n", len(schemas))
+		if len(classMetas) > 0 {
+			fmt.Printf("[INFO] 读取到 %d 个 Class 配置\n", len(classMetas))
+		}
 	}
 
 	// 2. 按 ClassName 合并多 Sheet 数据
 	if cfg.Verbose {
 		fmt.Println("[INFO] 合并 Sheet 数据...")
 	}
-	classData, err := merger.Merge(schemas)
+	classData, err := merger.Merge(schemas, classMetas)
 	if err != nil {
 		return fmt.Errorf("合并 Sheet 数据失败: %w", err)
 	}
@@ -70,7 +72,7 @@ func run(cfg *config.Config) error {
 	if cfg.Verbose {
 		fmt.Println("[INFO] 校验数据...")
 	}
-	if err := validator.Validate(classData, cfg.PK); err != nil {
+	if err := validator.Validate(classData); err != nil {
 		return fmt.Errorf("数据校验失败: %w", err)
 	}
 	if cfg.Verbose {
@@ -84,7 +86,8 @@ func run(cfg *config.Config) error {
 	for className, data := range classData {
 		// 每个 Sheet 分别排序
 		for _, sheetData := range data.SheetData {
-			merger.SortRowsByRows(sheetData.Rows, sheetData.Schema.Fields, cfg.PK)
+			merger.SortRowsByRows(sheetData.Rows, sheetData.Schema.Fields,
+				data.Meta.PkType, data.Meta.PkFields, data.Meta.SortFields)
 		}
 
 		rows, err := builder.Build(data)
