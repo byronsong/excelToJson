@@ -25,6 +25,11 @@ type PathSegment struct {
 // ParsePath 解析列名路径
 // 例如: rewards[0].id -> [rewards[0], id] -> [PathSegment{Name:"rewards", ArrayIdx:0}, PathSegment{Name:"id"}]
 func ParsePath(fieldName string) ([]PathSegment, error) {
+	// 空字符串返回空片段
+	if fieldName == "" {
+		return []PathSegment{}, nil
+	}
+
 	// 先按 . 分割
 	parts := strings.Split(fieldName, ".")
 	segments := make([]PathSegment, 0, len(parts))
@@ -47,8 +52,13 @@ func parseSegment(part string) (PathSegment, error) {
 		MapKey:   -1,
 	}
 
-	// 检查数组索引 [N]
-	arrayRegex := regexp.MustCompile(`(\w+)\[(\d+)\]`)
+	// 检查空段
+	if part == "" {
+		return segment, fmt.Errorf("路径段不能为空")
+	}
+
+	// 检查数组索引 [N]，支持负数检测
+	arrayRegex := regexp.MustCompile(`(\w+)\[(-?\d+)\]`)
 	if match := arrayRegex.FindStringSubmatch(part); match != nil {
 		segment.Name = match[1]
 		segment.IsArray = true
@@ -56,12 +66,20 @@ func parseSegment(part string) (PathSegment, error) {
 		if err != nil {
 			return segment, fmt.Errorf("数组索引解析失败: %s", part)
 		}
+		if idx < 0 {
+			return segment, fmt.Errorf("数组索引不能为负数: %s", part)
+		}
 		segment.ArrayIdx = idx
 		return segment, nil
 	}
 
-	// 检查 Map 键 {K}
-	mapRegex := regexp.MustCompile(`(\w+)\{(\d+)\}`)
+	// 检查空数组索引 []
+	if strings.Contains(part, "[]") {
+		return segment, fmt.Errorf("数组索引不能为空: %s", part)
+	}
+
+	// 检查 Map 键 {K}，支持负数检测
+	mapRegex := regexp.MustCompile(`(\w+)\{(-?\d+)\}`)
 	if match := mapRegex.FindStringSubmatch(part); match != nil {
 		segment.Name = match[1]
 		segment.IsMap = true
@@ -69,8 +87,16 @@ func parseSegment(part string) (PathSegment, error) {
 		if err != nil {
 			return segment, fmt.Errorf("Map键解析失败: %s", part)
 		}
+		if key < 0 {
+			return segment, fmt.Errorf("Map键不能为负数: %s", part)
+		}
 		segment.MapKey = key
 		return segment, nil
+	}
+
+	// 检查空 Map 键 {}
+	if strings.Contains(part, "{}") {
+		return segment, fmt.Errorf("Map键不能为空: %s", part)
 	}
 
 	// 普通字段
