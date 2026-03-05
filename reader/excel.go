@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"xlsxtojson/classconfig"
+	"xlsxtojson/globalconfig"
 	schemapkg "xlsxtojson/schema"
 	"xlsxtojson/util"
 
@@ -16,8 +17,9 @@ import (
 
 // FileSchemas 包含一个文件的 schemas 和该文件的 classMetas
 type FileSchemas struct {
-	Schemas   []*schemapkg.SheetSchema
-	ClassMeta map[string]*classconfig.ClassMeta // 按 className -> ClassMeta
+	Schemas      []*schemapkg.SheetSchema
+	ClassMeta    map[string]*classconfig.ClassMeta // 按 className -> ClassMeta
+	GlobalConfig *globalconfig.GlobalData          // GlobalConfig 数据
 }
 
 // ReadExcel 读取 Excel 文件并解析所有 Sheet
@@ -39,6 +41,7 @@ func ReadExcel(filePath string) (*FileSchemas, error) {
 	sheets := f.GetSheetList()
 
 	var schemas []*schemapkg.SheetSchema
+	var globalConfigRows [][]string
 
 	for _, sheetName := range sheets {
 		// 跳过 __ClassConfig Sheet（不作为业务数据导出）
@@ -60,6 +63,16 @@ func ReadExcel(filePath string) (*FileSchemas, error) {
 			continue
 		}
 
+		// 检查是否为 GlobalConfig Sheet（A1 以 ! 开头）
+		if len(rows) > 0 && len(rows[0]) > 0 {
+			className := strings.TrimSpace(rows[0][0])
+			if strings.HasPrefix(className, globalconfig.GlobalConfigSheetName) {
+				// GlobalConfig Sheet，收集数据
+				globalConfigRows = append(globalConfigRows, rows...)
+				continue
+			}
+		}
+
 		// 解析表头
 		schema, err := schemapkg.ParseHeader(rows, fileName, sheetName)
 		if err != nil {
@@ -74,9 +87,19 @@ func ReadExcel(filePath string) (*FileSchemas, error) {
 		schemas = append(schemas, schema)
 	}
 
+	// 解析 GlobalConfig 数据
+	var globalData *globalconfig.GlobalData
+	if len(globalConfigRows) > 0 {
+		globalData, err = globalconfig.ParseGlobalConfig(globalConfigRows, fileName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &FileSchemas{
-		Schemas:   schemas,
-		ClassMeta: classMetas,
+		Schemas:      schemas,
+		ClassMeta:    classMetas,
+		GlobalConfig: globalData,
 	}, nil
 }
 

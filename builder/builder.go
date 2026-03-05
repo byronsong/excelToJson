@@ -213,17 +213,17 @@ func convertValue(value string, fieldType schema.FieldType) (interface{}, error)
 		return parseBool(value), nil
 
 	case schema.TypeIntSlice:
-		return parseIntSlice(value)
+		return ParseIntSlice(value)
 	case schema.TypeFloatSlice:
-		return parseFloatSlice(value)
+		return ParseFloatSlice(value)
 	case schema.TypeStringSlice:
-		return parseStringSlice(value)
+		return ParseStringSlice(value)
 	case schema.TypeIntMap:
-		return parseIntMap(value)
+		return ParseIntMap(value)
 	case schema.TypeStringMap:
-		return parseStringMap(value)
+		return ParseStringMap(value)
 	case schema.TypeIntStringMap:
-		return parseIntStringMap(value)
+		return ParseIntStringMap(value)
 	case schema.TypeStringStringMap:
 		return parseStringStringMap(value)
 	}
@@ -240,8 +240,8 @@ func parseBool(value string) bool {
 	return false
 }
 
-// parseIntSlice 解析整数数组
-func parseIntSlice(value string) ([]interface{}, error) {
+// ParseIntSlice 解析整数数组
+func ParseIntSlice(value string) ([]interface{}, error) {
 	if value == "" {
 		return []interface{}{}, nil
 	}
@@ -261,8 +261,8 @@ func parseIntSlice(value string) ([]interface{}, error) {
 	return result, nil
 }
 
-// parseFloatSlice 解析浮点数数组
-func parseFloatSlice(value string) ([]interface{}, error) {
+// ParseFloatSlice 解析浮点数数组
+func ParseFloatSlice(value string) ([]interface{}, error) {
 	if value == "" {
 		return []interface{}{}, nil
 	}
@@ -282,8 +282,8 @@ func parseFloatSlice(value string) ([]interface{}, error) {
 	return result, nil
 }
 
-// parseStringSlice 解析字符串数组
-func parseStringSlice(value string) ([]interface{}, error) {
+// ParseStringSlice 解析字符串数组
+func ParseStringSlice(value string) ([]interface{}, error) {
 	if value == "" {
 		return []interface{}{}, nil
 	}
@@ -305,8 +305,8 @@ func parseStringSlice(value string) ([]interface{}, error) {
 	return result, nil
 }
 
-// parseIntMap 解析整数 Map
-func parseIntMap(value string) (map[string]interface{}, error) {
+// ParseIntMap 解析整数 Map
+func ParseIntMap(value string) (map[string]interface{}, error) {
 	if value == "" {
 		return map[string]interface{}{}, nil
 	}
@@ -332,8 +332,8 @@ func parseIntMap(value string) (map[string]interface{}, error) {
 	return result, nil
 }
 
-// parseStringMap 解析字符串 Map
-func parseStringMap(value string) (map[string]interface{}, error) {
+// ParseStringMap 解析字符串 Map
+func ParseStringMap(value string) (map[string]interface{}, error) {
 	if value == "" {
 		return map[string]interface{}{}, nil
 	}
@@ -359,8 +359,8 @@ func parseStringMap(value string) (map[string]interface{}, error) {
 	return result, nil
 }
 
-// parseIntStringMap 解析 int->string Map
-func parseIntStringMap(value string) (map[int]interface{}, error) {
+// ParseIntStringMap 解析 int->string Map
+func ParseIntStringMap(value string) (map[int]interface{}, error) {
 	if value == "" {
 		return map[int]interface{}{}, nil
 	}
@@ -386,8 +386,8 @@ func parseIntStringMap(value string) (map[int]interface{}, error) {
 	return result, nil
 }
 
-// parseStringStringMap 解析 string->string Map
-func parseStringStringMap(value string) (map[string]interface{}, error) {
+// ParseStringStringMap 解析 string->string Map
+func ParseStringStringMap(value string) (map[string]interface{}, error) {
 	if value == "" {
 		return map[string]interface{}{}, nil
 	}
