@@ -224,6 +224,8 @@ func convertValue(value string, fieldType schema.FieldType) (interface{}, error)
 		return parseStringMap(value)
 	case schema.TypeIntStringMap:
 		return parseIntStringMap(value)
+	case schema.TypeStringStringMap:
+		return parseStringStringMap(value)
 	}
 
 	return value, nil
@@ -309,7 +311,7 @@ func parseIntMap(value string) (map[string]interface{}, error) {
 		return map[string]interface{}{}, nil
 	}
 	result := make(map[string]interface{})
-	pairs := strings.Split(value, ";")
+	pairs := strings.Split(value, ",")
 	for _, pair := range pairs {
 		pair = strings.TrimSpace(pair)
 		if pair == "" {
@@ -336,7 +338,7 @@ func parseStringMap(value string) (map[string]interface{}, error) {
 		return map[string]interface{}{}, nil
 	}
 	result := make(map[string]interface{})
-	pairs := strings.Split(value, ";")
+	pairs := strings.Split(value, ",")
 	for _, pair := range pairs {
 		pair = strings.TrimSpace(pair)
 		if pair == "" {
@@ -363,7 +365,7 @@ func parseIntStringMap(value string) (map[int]interface{}, error) {
 		return map[int]interface{}{}, nil
 	}
 	result := make(map[int]interface{})
-	pairs := strings.Split(value, ";")
+	pairs := strings.Split(value, ",")
 	for _, pair := range pairs {
 		pair = strings.TrimSpace(pair)
 		if pair == "" {
@@ -380,6 +382,29 @@ func parseIntStringMap(value string) (map[int]interface{}, error) {
 			return nil, fmt.Errorf("期望 map<int,string> 类型，实际值 \"%s\" 的键无法解析为整数", value)
 		}
 		result[int(kInt)] = v
+	}
+	return result, nil
+}
+
+// parseStringStringMap 解析 string->string Map
+func parseStringStringMap(value string) (map[string]interface{}, error) {
+	if value == "" {
+		return map[string]interface{}{}, nil
+	}
+	result := make(map[string]interface{})
+	pairs := strings.Split(value, ",")
+	for _, pair := range pairs {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		kv := strings.Split(pair, ":")
+		if len(kv) != 2 {
+			return nil, fmt.Errorf("期望 map<string,string> 类型，实际值 \"%s\" 格式错误", value)
+		}
+		k := strings.TrimSpace(kv[0])
+		v := strings.TrimSpace(kv[1])
+		result[k] = v
 	}
 	return result, nil
 }

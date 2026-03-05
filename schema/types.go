@@ -24,6 +24,7 @@ const (
 	TypeFloatMap
 	TypeStringMap
 	TypeIntStringMap // map<int, string>
+	TypeStringStringMap // map<string, string>
 	TypeStruct
 	TypeStructSlice
 	TypeStructMap
@@ -55,6 +56,8 @@ func (t FieldType) String() string {
 		return "map<string,int>"
 	case TypeIntStringMap:
 		return "map<int,string>"
+	case TypeStringStringMap:
+		return "map<string,string>"
 	case TypeStruct:
 		return "struct"
 	case TypeStructSlice:
@@ -93,6 +96,8 @@ func ParseFieldType(typeStr string) FieldType {
 		return TypeStringMap
 	case "map<int,string>":
 		return TypeIntStringMap
+	case "map<string,string>":
+		return TypeStringStringMap
 	case "struct":
 		return TypeStruct
 	case "[]struct":
