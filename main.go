@@ -7,6 +7,7 @@ import (
 	"xlsxtojson/builder"
 	"xlsxtojson/config"
 	"xlsxtojson/exporter"
+	"xlsxtojson/globalconfig"
 	"xlsxtojson/merger"
 	"xlsxtojson/reader"
 	"xlsxtojson/schema"
@@ -46,7 +47,7 @@ func run(cfg *config.Config) error {
 	if cfg.Verbose {
 		fmt.Println("[INFO] 读取 Excel 文件...")
 	}
-	schemas, classMetas, err := reader.ReadAll(cfg.Input)
+	schemas, classMetas, globalConfigData, err := reader.ReadAll(cfg.Input)
 	if err != nil {
 		return fmt.Errorf("读取 Excel 文件失败: %w", err)
 	}
@@ -54,6 +55,9 @@ func run(cfg *config.Config) error {
 		fmt.Printf("[INFO] 共读取 %d 个 Sheet\n", len(schemas))
 		if len(classMetas) > 0 {
 			fmt.Printf("[INFO] 读取到 %d 个 Class 配置\n", len(classMetas))
+		}
+		if globalConfigData != nil && len(globalConfigData.Entries) > 0 {
+			fmt.Printf("[INFO] 读取到 %d 个 GlobalConfig 配置\n", len(globalConfigData.Entries))
 		}
 	}
 
@@ -101,7 +105,15 @@ func run(cfg *config.Config) error {
 		merger.SortParsedRows(rows, data.Meta.PkType, data.Meta.PkFields, data.Meta.SortFields, fieldTypes)
 	}
 
-	// 5. 输出 JSON 文件
+	// 5. 构建 GlobalConfig 数据
+	var globalData *globalconfig.GlobalData
+	if globalConfigData != nil && len(globalConfigData.Entries) > 0 {
+		globalData = &globalconfig.GlobalData{
+			Entries: globalConfigData.Entries,
+		}
+	}
+
+	// 6. 输出 JSON 文件
 	if !cfg.DryRun {
 		if cfg.Verbose {
 			fmt.Println("[INFO] 导出 JSON 文件...")
@@ -109,6 +121,17 @@ func run(cfg *config.Config) error {
 		if err := exporter.Export(classData, cfg.Output, cfg.Pretty); err != nil {
 			return fmt.Errorf("导出 JSON 文件失败: %w", err)
 		}
+
+		// 导出 GlobalConfig
+		if globalData != nil {
+			if err := exporter.ExportGlobalConfig(globalData, cfg.Output, cfg.Pretty); err != nil {
+				return fmt.Errorf("导出 GlobalConfig 失败: %w", err)
+			}
+			if cfg.Verbose {
+				fmt.Printf("[INFO] 已导出 GlobalConfig.json (%d 条配置)\n", len(globalData.Entries))
+			}
+		}
+
 		if cfg.Verbose {
 			fmt.Println("[INFO] 导出完成")
 		}

@@ -15,6 +15,11 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+// GlobalConfigData 全局配置数据（跨文件合并）
+type GlobalConfigData struct {
+	Entries []*globalconfig.GlobalEntry
+}
+
 // FileSchemas 包含一个文件的 schemas 和该文件的 classMetas
 type FileSchemas struct {
 	Schemas      []*schemapkg.SheetSchema
@@ -129,29 +134,30 @@ func ScanDirectory(dirPath string) ([]string, error) {
 }
 
 // ReadAll 读取输入路径下的所有 Excel 文件
-func ReadAll(inputPath string) ([]*schemapkg.SheetSchema, map[string]*classconfig.ClassMeta, error) {
+func ReadAll(inputPath string) ([]*schemapkg.SheetSchema, map[string]*classconfig.ClassMeta, *GlobalConfigData, error) {
 	var allSchemas []*schemapkg.SheetSchema
 	allClassMetas := make(map[string]*classconfig.ClassMeta)
+	var allGlobalEntries []*globalconfig.GlobalEntry
 
 	info, err := os.Stat(inputPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("输入路径不存在: %w", err)
+		return nil, nil, nil, fmt.Errorf("输入路径不存在: %w", err)
 	}
 
 	if info.IsDir() {
 		// 是目录，扫描所有 xlsx 文件
 		files, err := ScanDirectory(inputPath)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		if len(files) == 0 {
-			return nil, nil, fmt.Errorf("目录中没有找到 .xlsx 文件: %s", inputPath)
+			return nil, nil, nil, fmt.Errorf("目录中没有找到 .xlsx 文件: %s", inputPath)
 		}
 
 		for _, file := range files {
 			fileSchemas, err := ReadExcel(file)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			allSchemas = append(allSchemas, fileSchemas.Schemas...)
 
@@ -160,29 +166,47 @@ func ReadAll(inputPath string) ([]*schemapkg.SheetSchema, map[string]*classconfi
 				if existing, exists := allClassMetas[className]; exists {
 					// 检查是否冲突
 					if !isMetaEqual(existing, meta) {
-						return nil, nil, fmt.Errorf("Class '%s' 在文件 '%s' 和 '%s' 中的 __ClassConfig 配置不一致",
+						return nil, nil, nil, fmt.Errorf("Class '%s' 在文件 '%s' 和 '%s' 中的 __ClassConfig 配置不一致",
 							className, existing.SourceFile, meta.SourceFile)
 					}
 				}
 				allClassMetas[className] = meta
 			}
+
+			// 合并 GlobalConfig
+			if fileSchemas.GlobalConfig != nil && len(fileSchemas.GlobalConfig.Entries) > 0 {
+				allGlobalEntries = append(allGlobalEntries, fileSchemas.GlobalConfig.Entries...)
+			}
 		}
 	} else {
 		// 是单个文件
 		if !strings.HasSuffix(strings.ToLower(info.Name()), ".xlsx") {
-			return nil, nil, fmt.Errorf("输入文件不是 .xlsx 格式: %s", info.Name())
+			return nil, nil, nil, fmt.Errorf("输入文件不是 .xlsx 格式: %s", info.Name())
 		}
 		fileSchemas, err := ReadExcel(inputPath)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		allSchemas = append(allSchemas, fileSchemas.Schemas...)
 		for className, meta := range fileSchemas.ClassMeta {
 			allClassMetas[className] = meta
 		}
+
+		// 合并 GlobalConfig
+		if fileSchemas.GlobalConfig != nil && len(fileSchemas.GlobalConfig.Entries) > 0 {
+			allGlobalEntries = append(allGlobalEntries, fileSchemas.GlobalConfig.Entries...)
+		}
 	}
 
-	return allSchemas, allClassMetas, nil
+	// 构建 GlobalConfigData
+	var globalData *GlobalConfigData
+	if len(allGlobalEntries) > 0 {
+		globalData = &GlobalConfigData{
+			Entries: allGlobalEntries,
+		}
+	}
+
+	return allSchemas, allClassMetas, globalData, nil
 }
 
 // isMetaEqual 比较两个 ClassMeta 是否相等
