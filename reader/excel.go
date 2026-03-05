@@ -1,13 +1,14 @@
 package reader
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"xlsxtojson/classconfig"
-	"xlsxtojson/schema"
+	schemapkg "xlsxtojson/schema"
 	"xlsxtojson/util"
 
 	"github.com/xuri/excelize/v2"
@@ -15,7 +16,7 @@ import (
 
 // FileSchemas 包含一个文件的 schemas 和该文件的 classMetas
 type FileSchemas struct {
-	Schemas   []*schema.SheetSchema
+	Schemas   []*schemapkg.SheetSchema
 	ClassMeta map[string]*classconfig.ClassMeta // 按 className -> ClassMeta
 }
 
@@ -37,7 +38,7 @@ func ReadExcel(filePath string) (*FileSchemas, error) {
 
 	sheets := f.GetSheetList()
 
-	var schemas []*schema.SheetSchema
+	var schemas []*schemapkg.SheetSchema
 
 	for _, sheetName := range sheets {
 		// 跳过 __ClassConfig Sheet（不作为业务数据导出）
@@ -60,10 +61,10 @@ func ReadExcel(filePath string) (*FileSchemas, error) {
 		}
 
 		// 解析表头
-		schema, err := schema.ParseHeader(rows, fileName, sheetName)
+		schema, err := schemapkg.ParseHeader(rows, fileName, sheetName)
 		if err != nil {
-			// 如果是 A1 为空或未找到 FieldName 行的警告，打印警告并跳过
-			if strings.Contains(err.Error(), "A1 为空") || strings.Contains(err.Error(), "未找到 FieldName 行") {
+			// 使用 errors.Is 判断是否为需要跳过的警告类型
+			if errors.Is(err, schemapkg.ErrEmptyClassName) || errors.Is(err, schemapkg.ErrNoFieldNameRow) {
 				fmt.Printf("[WARN] %s\n", err.Error())
 				continue
 			}
@@ -105,8 +106,8 @@ func ScanDirectory(dirPath string) ([]string, error) {
 }
 
 // ReadAll 读取输入路径下的所有 Excel 文件
-func ReadAll(inputPath string) ([]*schema.SheetSchema, map[string]*classconfig.ClassMeta, error) {
-	var allSchemas []*schema.SheetSchema
+func ReadAll(inputPath string) ([]*schemapkg.SheetSchema, map[string]*classconfig.ClassMeta, error) {
+	var allSchemas []*schemapkg.SheetSchema
 	allClassMetas := make(map[string]*classconfig.ClassMeta)
 
 	info, err := os.Stat(inputPath)

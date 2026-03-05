@@ -165,13 +165,20 @@ func SetValueByPath(data map[string]interface{}, segments []PathSegment, value i
 					arr[seg.ArrayIdx] = make(map[string]interface{})
 				}
 			}
-			current = arr[seg.ArrayIdx].(map[string]interface{})
+			nextCurrent, ok := arr[seg.ArrayIdx].(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("路径冲突: %s[%d] 不是对象类型", key, seg.ArrayIdx)
+			}
+			current = nextCurrent
 		} else if seg.IsMap {
 			// 检查 Map 键是否超出最大值
 			if seg.MapKey > MaxMapKey {
 				return fmt.Errorf("Map键 %d 超过最大值 %d", seg.MapKey, MaxMapKey)
 			}
-			m := current[key].(map[int]interface{})
+			m, ok := current[key].(map[int]interface{})
+			if !ok {
+				return fmt.Errorf("路径冲突: %s 不是 map[int]interface{} 类型", key)
+			}
 			if _, exists := m[seg.MapKey]; !exists {
 				if nextSeg.IsArray {
 					m[seg.MapKey] = make([]interface{}, 0)
@@ -181,7 +188,11 @@ func SetValueByPath(data map[string]interface{}, segments []PathSegment, value i
 					m[seg.MapKey] = make(map[string]interface{})
 				}
 			}
-			current = m[seg.MapKey].(map[string]interface{})
+			nextCurrent, ok := m[seg.MapKey].(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("路径冲突: %s{%d} 不是对象类型", key, seg.MapKey)
+			}
+			current = nextCurrent
 		} else {
 			// 普通对象
 			var ok bool
@@ -218,7 +229,10 @@ func SetValueByPath(data map[string]interface{}, segments []PathSegment, value i
 		}
 		arr[lastSeg.ArrayIdx] = value
 	} else if lastSeg.IsMap {
-		m := current[key].(map[int]interface{})
+		m, ok := current[key].(map[int]interface{})
+		if !ok {
+			return fmt.Errorf("路径冲突: %s 不是 map[int]interface{} 类型", key)
+		}
 		m[lastSeg.MapKey] = value
 		current[key] = m
 	} else {

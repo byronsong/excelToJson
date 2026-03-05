@@ -196,3 +196,82 @@ func parseNumeric(val string) (int64, error) {
 	}
 	return 0, fmt.Errorf("not a number")
 }
+
+// SortParsedRows 按主键升序排列已解析的数据行（[]map[string]interface{}）
+// 支持 single, composite, none 三种 pkType
+func SortParsedRows(rows []map[string]interface{}, pkType classconfig.PkType, pkFields []string, sortFields []string, fieldTypes map[string]schema.FieldType) {
+	switch pkType {
+	case classconfig.PkTypeSingle:
+		// 按单主键升序排序
+		if len(pkFields) > 0 {
+			pkName := pkFields[0]
+			pkFieldType := fieldTypes[pkName]
+			sort.Slice(rows, func(i, j int) bool {
+				var valI, valJ interface{}
+				if rows[i] != nil {
+					valI = rows[i][pkName]
+				}
+				if rows[j] != nil {
+					valJ = rows[j][pkName]
+				}
+				return compareMapValues(valI, valJ, pkFieldType)
+			})
+		}
+
+	case classconfig.PkTypeComposite:
+		// 联合主键：保持原顺序，不排序
+
+	case classconfig.PkTypeNone:
+		// 无主键模式
+		if len(sortFields) > 0 {
+			sort.Slice(rows, func(i, j int) bool {
+				for _, sf := range sortFields {
+					sfType := fieldTypes[sf]
+					var valI, valJ interface{}
+					if rows[i] != nil {
+						valI = rows[i][sf]
+					}
+					if rows[j] != nil {
+						valJ = rows[j][sf]
+					}
+					if valI != valJ {
+						return compareMapValues(valI, valJ, sfType)
+					}
+				}
+				return false
+			})
+		}
+		// 如果没有 sortFields，保持原顺序
+	}
+}
+
+// compareMapValues 比较 map 中的值（interface{} 类型）
+func compareMapValues(valI, valJ interface{}, fieldType schema.FieldType) bool {
+	// 将 interface{} 转换为字符串进行比较
+	strI := toString(valI)
+	strJ := toString(valJ)
+
+	switch fieldType {
+	case schema.TypeInt, schema.TypeFloat:
+		return compareNumeric(strI, strJ)
+	default:
+		return strI < strJ
+	}
+}
+
+// toString 将 interface{} 转换为字符串
+func toString(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	switch val := v.(type) {
+	case string:
+		return val
+	case int, int8, int16, int32, int64:
+		return fmt.Sprintf("%d", val)
+	case float32, float64:
+		return fmt.Sprintf("%f", val)
+	default:
+		return fmt.Sprintf("%v", val)
+	}
+}

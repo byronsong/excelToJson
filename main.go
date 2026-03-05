@@ -9,6 +9,7 @@ import (
 	"xlsxtojson/exporter"
 	"xlsxtojson/merger"
 	"xlsxtojson/reader"
+	"xlsxtojson/schema"
 	"xlsxtojson/validator"
 
 	"github.com/spf13/cobra"
@@ -84,17 +85,20 @@ func run(cfg *config.Config) error {
 		fmt.Println("[INFO] 构建数据...")
 	}
 	for className, data := range classData {
-		// 每个 Sheet 分别排序
-		for _, sheetData := range data.SheetData {
-			merger.SortRowsByRows(sheetData.Rows, sheetData.Schema.Fields,
-				data.Meta.PkType, data.Meta.PkFields, data.Meta.SortFields)
-		}
-
 		rows, err := builder.Build(data)
 		if err != nil {
 			return fmt.Errorf("构建 %s 数据失败: %w", className, err)
 		}
 		data.ParsedRows = rows
+
+		// Build 之后对全局 ParsedRows 进行排序（跨 Sheet 有序）
+		fieldTypes := make(map[string]schema.FieldType)
+		for _, sheetData := range data.SheetData {
+			for _, f := range sheetData.Schema.Fields {
+				fieldTypes[f.FieldName] = f.FieldType
+			}
+		}
+		merger.SortParsedRows(rows, data.Meta.PkType, data.Meta.PkFields, data.Meta.SortFields, fieldTypes)
 	}
 
 	// 5. 输出 JSON 文件

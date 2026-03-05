@@ -20,21 +20,15 @@ func Export(data map[string]*merger.ClassData, outputDir string, pretty bool) er
 		outputFile := filepath.Join(outputDir, className+".json")
 
 		// 序列化 JSON
-		jsonData, err := json.Marshal(classData.ParsedRows)
+		var jsonData []byte
+		var err error
+		if pretty {
+			jsonData, err = json.MarshalIndent(classData.ParsedRows, "", "  ")
+		} else {
+			jsonData, err = json.Marshal(classData.ParsedRows)
+		}
 		if err != nil {
 			return fmt.Errorf("序列化 JSON 失败: %w", err)
-		}
-
-		// 格式化输出
-		if pretty {
-			var prettyData interface{}
-			if err := json.Unmarshal(jsonData, &prettyData); err != nil {
-				return fmt.Errorf("解析 JSON 失败: %w", err)
-			}
-			jsonData, err = json.MarshalIndent(prettyData, "", "  ")
-			if err != nil {
-				return fmt.Errorf("格式化 JSON 失败: %w", err)
-			}
 		}
 
 		// 写入文件

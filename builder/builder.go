@@ -43,7 +43,7 @@ func Build(classData *merger.ClassData) ([]map[string]interface{}, error) {
 				colIdx := field.ColIndex
 
 				// 处理嵌套字段
-				if isNestedField(field.FieldName) {
+				if schema.IsNestedField(field.FieldName) {
 					if err := buildNestedField(rowMap, field, row, colIdx, schemaInfo, rowIdx); err != nil {
 						return nil, err
 					}
@@ -149,13 +149,6 @@ func buildNestedField(rowMap map[string]interface{}, field schema.FieldDef, row 
 	}
 
 	return SetValueByPath(rowMap, segments, val)
-}
-
-// isNestedField 判断是否为嵌套字段
-func isNestedField(fieldName string) bool {
-	return strings.Contains(fieldName, ".") ||
-		strings.Contains(fieldName, "[") ||
-		strings.Contains(fieldName, "{")
 }
 
 // filterEmptyArrays 过滤掉数组中的空元素

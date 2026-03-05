@@ -18,27 +18,23 @@ func Validate(data map[string]*merger.ClassData) error {
 			meta = classconfig.GetDefaultMeta(className)
 		}
 
-		// 遍历每个 Sheet 的数据
+		// 先进行跨 Sheet 的主键唯一性校验（每个 Class 只校验一次）
+		switch meta.PkType {
+		case classconfig.PkTypeSingle:
+			if err := validateSinglePK(classData, meta.PkFields[0]); err != nil {
+				return err
+			}
+		case classconfig.PkTypeComposite:
+			if err := validateCompositePK(classData, meta.PkFields); err != nil {
+				return err
+			}
+		case classconfig.PkTypeNone:
+			// 无主键，不做唯一性校验
+		}
+
+		// 遍历每个 Sheet 的数据进行其他校验
 		for _, sheetData := range classData.SheetData {
 			sheetSchema := sheetData.Schema
-
-			// 根据 pkType 进行不同的校验
-			switch meta.PkType {
-			case classconfig.PkTypeSingle:
-				// 单主键校验
-				if err := validateSinglePK(sheetData, classData, meta.PkFields[0]); err != nil {
-					return err
-				}
-
-			case classconfig.PkTypeComposite:
-				// 联合主键校验
-				if err := validateCompositePK(sheetData, classData, meta.PkFields); err != nil {
-					return err
-				}
-
-			case classconfig.PkTypeNone:
-				// 无主键，不做唯一性校验
-			}
 
 			// 检查 sheetNameAs 字段名是否与业务表头冲突
 			if meta.SheetNameAs != "" {
@@ -57,11 +53,15 @@ func Validate(data map[string]*merger.ClassData) error {
 	return nil
 }
 
-// validateSinglePK 校验单主键唯一性
-func validateSinglePK(sheetData *merger.SheetRows, classData *merger.ClassData, pkName string) error {
-	sheetSchema := sheetData.Schema
+// validateSinglePK 校验单主键唯一性（跨所有 Sheet）
+func validateSinglePK(classData *merger.ClassData, pkName string) error {
+	// 查找主键字段（从第一个 Sheet 获取字段定义）
+	if len(classData.SheetData) == 0 {
+		return nil
+	}
+	firstSheet := classData.SheetData[0]
+	sheetSchema := firstSheet.Schema
 
-	// 查找主键字段
 	pkColIndex := -1
 	for _, f := range sheetSchema.Fields {
 		if f.FieldName == pkName {
@@ -78,6 +78,7 @@ func validateSinglePK(sheetData *merger.SheetRows, classData *merger.ClassData, 
 
 	// 收集所有 Sheet 的 ID
 	for _, sd := range classData.SheetData {
+		schema := sd.Schema
 		for rowIdx, row := range sd.Rows {
 			if pkColIndex >= len(row) {
 				continue
@@ -88,9 +89,9 @@ func validateSinglePK(sheetData *merger.SheetRows, classData *merger.ClassData, 
 			}
 
 			if existingIdx, exists := idSet[pkValue]; exists {
-				return fmt.Errorf("%s / %s / 行%d / 列%d (id): 主键重复，值 %s 已在行%d 出现",
-					sheetSchema.FileName, sheetSchema.SheetName,
-					rowIdx+sheetSchema.DataStartRow, pkColIndex+1, pkValue, existingIdx+sheetSchema.DataStartRow)
+				return fmt.Errorf("%s / %s / 行%d / 列%d (%s): 主键重复，值 '%s' 已在行%d 出现",
+					schema.FileName, schema.SheetName,
+					rowIdx+schema.DataStartRow, pkColIndex+1, pkName, pkValue, existingIdx+schema.DataStartRow)
 			}
 			idSet[pkValue] = rowIdx
 		}
@@ -99,11 +100,15 @@ func validateSinglePK(sheetData *merger.SheetRows, classData *merger.ClassData, 
 	return nil
 }
 
-// validateCompositePK 校验联合主键唯一性
-func validateCompositePK(sheetData *merger.SheetRows, classData *merger.ClassData, pkFields []string) error {
-	sheetSchema := sheetData.Schema
+// validateCompositePK 校验联合主键唯一性（跨所有 Sheet）
+func validateCompositePK(classData *merger.ClassData, pkFields []string) error {
+	// 查找各主键字段的列索引（从第一个 Sheet 获取字段定义）
+	if len(classData.SheetData) == 0 {
+		return nil
+	}
+	firstSheet := classData.SheetData[0]
+	sheetSchema := firstSheet.Schema
 
-	// 查找各主键字段的列索引
 	pkColIndexes := make([]int, len(pkFields))
 	for i, pf := range pkFields {
 		pkColIndexes[i] = -1
@@ -118,10 +123,11 @@ func validateCompositePK(sheetData *merger.SheetRows, classData *merger.ClassDat
 		}
 	}
 
-	// 检查联合主键唯一性
+	// 检查联合主键唯一性（跨所有 Sheet）
 	compositeKeySet := make(map[string]int) // composite key -> row index (1-based)
 
 	for _, sd := range classData.SheetData {
+		schema := sd.Schema
 		for rowIdx, row := range sd.Rows {
 			// 构建组合键
 			var keyParts []string
@@ -148,10 +154,10 @@ func validateCompositePK(sheetData *merger.SheetRows, classData *merger.ClassDat
 			if existingIdx, exists := compositeKeySet[compositeKey]; exists {
 				// 显示组合键值
 				return fmt.Errorf("%s / %s / 行%d / (%s): 联合主键重复，值 (%s) 已在行%d 出现",
-					sheetSchema.FileName, sheetSchema.SheetName,
-					rowIdx+sheetSchema.DataStartRow,
+					schema.FileName, schema.SheetName,
+					rowIdx+schema.DataStartRow,
 					strings.Join(pkFields, ","),
-					compositeKey, existingIdx+sheetSchema.DataStartRow)
+					compositeKey, existingIdx+schema.DataStartRow)
 			}
 			compositeKeySet[compositeKey] = rowIdx
 		}
@@ -298,17 +304,27 @@ func validateFloatSlice(value string) error {
 }
 
 // validateStringSlice 验证字符串数组格式
+// 支持两种格式：有引号包裹 ("a","b","c") 或无引号 (a,b,c)
 func validateStringSlice(value string) error {
-	// 字符串数组格式为 "a,b,c"，每个元素用引号包裹
+	// 去掉首尾的方括号
+	value = strings.TrimPrefix(value, "[")
+	value = strings.TrimSuffix(value, "]")
+
 	parts := strings.Split(value, ",")
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
 		}
-		// 检查是否以引号开头和结尾
-		if !strings.HasPrefix(part, "\"") || !strings.HasSuffix(part, "\"") {
-			return fmt.Errorf("期望 []string 类型，实际值 \"%s\" 格式错误（元素需用引号包裹）", value)
+		// 支持两种格式：带引号或不带引号
+		// 带引号的格式：去掉首尾引号后检查是否还有引号（不能有内部引号）
+		if strings.HasPrefix(part, "\"") && strings.HasSuffix(part, "\"") {
+			// 有引号，去掉首尾引号
+			continue
+		}
+		// 无引号的格式：检查是否包含引号（不合法）
+		if strings.Contains(part, "\"") {
+			return fmt.Errorf("期望 []string 类型，实际值 \"%s\" 格式错误", value)
 		}
 	}
 	return nil

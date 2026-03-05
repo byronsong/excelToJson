@@ -12,6 +12,7 @@ import (
 	"xlsxtojson/exporter"
 	"xlsxtojson/merger"
 	"xlsxtojson/reader"
+	"xlsxtojson/schema"
 	"xlsxtojson/validator"
 )
 
@@ -85,13 +86,18 @@ func TestBasicFlow(t *testing.T) {
 
 			// 4. 构建数据
 			for _, data := range classData {
-				for _, sheetData := range data.SheetData {
-					merger.SortRowsByRows(sheetData.Rows, sheetData.Schema.Fields,
-						data.Meta.PkType, data.Meta.PkFields, data.Meta.SortFields)
-				}
 				rows, err := builder.Build(data)
 				require.NoError(t, err, "构建数据失败")
 				data.ParsedRows = rows
+
+				// Build 之后对全局 ParsedRows 进行排序
+				fieldTypes := make(map[string]schema.FieldType)
+				for _, sheetData := range data.SheetData {
+					for _, f := range sheetData.Schema.Fields {
+						fieldTypes[f.FieldName] = f.FieldType
+					}
+				}
+				merger.SortParsedRows(rows, data.Meta.PkType, data.Meta.PkFields, data.Meta.SortFields, fieldTypes)
 			}
 
 			// 验证特定 Class
@@ -128,13 +134,18 @@ func TestDirectoryFlow(t *testing.T) {
 
 	// 4. 构建数据
 	for _, data := range classData {
-		for _, sheetData := range data.SheetData {
-			merger.SortRowsByRows(sheetData.Rows, sheetData.Schema.Fields,
-				data.Meta.PkType, data.Meta.PkFields, data.Meta.SortFields)
-		}
 		rows, err := builder.Build(data)
 		require.NoError(t, err, "构建数据失败")
 		data.ParsedRows = rows
+
+		// Build 之后对全局 ParsedRows 进行排序
+		fieldTypes := make(map[string]schema.FieldType)
+		for _, sheetData := range data.SheetData {
+			for _, f := range sheetData.Schema.Fields {
+				fieldTypes[f.FieldName] = f.FieldType
+			}
+		}
+		merger.SortParsedRows(rows, data.Meta.PkType, data.Meta.PkFields, data.Meta.SortFields, fieldTypes)
 	}
 
 	// 验证关键 Class 存在
@@ -167,13 +178,18 @@ func TestExportIntegration(t *testing.T) {
 
 	// 4. 构建
 	for _, data := range classData {
-		for _, sheetData := range data.SheetData {
-			merger.SortRowsByRows(sheetData.Rows, sheetData.Schema.Fields,
-				data.Meta.PkType, data.Meta.PkFields, data.Meta.SortFields)
-		}
 		rows, err := builder.Build(data)
 		require.NoError(t, err)
 		data.ParsedRows = rows
+
+		// Build 之后对全局 ParsedRows 进行排序
+		fieldTypes := make(map[string]schema.FieldType)
+		for _, sheetData := range data.SheetData {
+			for _, f := range sheetData.Schema.Fields {
+				fieldTypes[f.FieldName] = f.FieldType
+			}
+		}
+		merger.SortParsedRows(rows, data.Meta.PkType, data.Meta.PkFields, data.Meta.SortFields, fieldTypes)
 	}
 
 	// 5. 导出
@@ -225,12 +241,17 @@ func TestNestedFieldIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, data := range classData {
-		for _, sheetData := range data.SheetData {
-			merger.SortRowsByRows(sheetData.Rows, sheetData.Schema.Fields,
-				data.Meta.PkType, data.Meta.PkFields, data.Meta.SortFields)
-		}
 		rows, err := builder.Build(data)
 		require.NoError(t, err)
+
+		// Build 之后对全局 ParsedRows 进行排序
+		fieldTypes := make(map[string]schema.FieldType)
+		for _, sheetData := range data.SheetData {
+			for _, f := range sheetData.Schema.Fields {
+				fieldTypes[f.FieldName] = f.FieldType
+			}
+		}
+		merger.SortParsedRows(rows, data.Meta.PkType, data.Meta.PkFields, data.Meta.SortFields, fieldTypes)
 
 		// 检查是否有嵌套字段 rewards
 		for _, row := range rows {
