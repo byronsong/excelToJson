@@ -9,7 +9,8 @@ import (
 )
 
 // ParseGlobalConfig 解析 GlobalConfig Sheet 数据
-func ParseGlobalConfig(rows [][]string, fileName string) (*GlobalData, error) {
+// sheetName 参数为真实的 Sheet 标签名，用于错误信息定位
+func ParseGlobalConfig(rows [][]string, fileName string, sheetName string) (*GlobalData, error) {
 	if len(rows) < 4 {
 		return nil, fmt.Errorf("%s: GlobalConfig Sheet 数据行数不足", fileName)
 	}
@@ -19,10 +20,7 @@ func ParseGlobalConfig(rows [][]string, fileName string) (*GlobalData, error) {
 	// rows[2] 是第3行（类型/FieldName）
 	// rows[3] 是第4行起（数据行）
 
-	sheetName := ""
-	if len(rows) > 0 && len(rows[0]) > 0 {
-		sheetName = strings.TrimSpace(rows[0][0])
-	}
+	// sheetName 由调用方传入真实的 Sheet 标签名
 
 	// 跳过 Client/Server 标记行（第3行），找到 FieldName 行
 	// GlobalConfig 的结构是：
@@ -91,23 +89,24 @@ func ParseGlobalConfig(rows [][]string, fileName string) (*GlobalData, error) {
 				ErrType:   ErrEmptyID,
 				FileName:  fileName,
 				SheetName: sheetName,
-				Row:       rowIdx + 4,
+				Row:       rowIdx + dataStartRow + 1,
 				Col:       "B",
 			}
 		}
 
 		// 检查 id 重复
-		if _, exists := idSet[id]; exists {
+		if firstRow, exists := idSet[id]; exists {
 			return nil, &GlobalError{
 				ErrType:   ErrIDDuplicate,
 				FileName:  fileName,
 				SheetName: sheetName,
-				Row:       rowIdx + 4,
+				Row:       rowIdx + dataStartRow + 1,
+				FirstRow:  firstRow,
 				Col:       "B",
 				Message:   id,
 			}
 		}
-		idSet[id] = rowIdx + 4
+		idSet[id] = rowIdx + dataStartRow + 1
 
 		// C 列：type（索引2）
 		typeStr := ""
@@ -125,7 +124,7 @@ func ParseGlobalConfig(rows [][]string, fileName string) (*GlobalData, error) {
 			ID:         id,
 			TypeStr:    typeStr,
 			RawValue:   rawValue,
-			RowIndex:   rowIdx + 4, // 数据从第4行开始
+			RowIndex:   rowIdx + dataStartRow + 1, // 动态计算行号
 			FileName:   fileName,
 			SheetName:  sheetName,
 		}

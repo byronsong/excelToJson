@@ -20,9 +20,10 @@ func TestParseGlobalConfig(t *testing.T) {
 			rows: [][]string{
 				{"!GlobalConfig", "唯一标识", "值类型", "内容"},
 				{"Type", "string", "string", "string"},
-				{"battle:maxLevel", "", "100"},
-				{"battle:version", "", "1.0.0"},
-				{"battle:enablePvp", "", "true"},
+				{"id", "type", "value"}, // FieldName 行
+				{"", "battle:maxLevel", "", "100"},
+				{"", "battle:version", "", "1.0.0"},
+				{"", "battle:enablePvp", "", "true"},
 			},
 			wantCount: 3,
 			wantErr:   false,
@@ -40,8 +41,9 @@ func TestParseGlobalConfig(t *testing.T) {
 			rows: [][]string{
 				{"!GlobalConfig", "唯一标识", "值类型", "内容"},
 				{"Type", "string", "string", "string"},
-				{"items:ids", "[]int", "1001,1002,1003"},
-				{"map:test", "map<string,int>", "a:1,b:2"},
+				{"id", "type", "value"}, // FieldName 行
+				{"", "items:ids", "[]int", "1001,1002,1003"},
+				{"", "map:test", "map<string,int>", "a:1,b:2"},
 			},
 			wantCount: 2,
 			wantErr:   false,
@@ -57,7 +59,8 @@ func TestParseGlobalConfig(t *testing.T) {
 			rows: [][]string{
 				{"!GlobalConfig", "唯一标识", "值类型", "内容"},
 				{"Type", "string", "string", "string"},
-				{"", "", "value"},
+				{"id", "type", "value"}, // FieldName 行
+				{"", "", "", "value"},
 			},
 			wantCount: 0,
 			wantErr:   true,
@@ -67,8 +70,9 @@ func TestParseGlobalConfig(t *testing.T) {
 			rows: [][]string{
 				{"!GlobalConfig", "唯一标识", "值类型", "内容"},
 				{"Type", "string", "string", "string"},
-				{"battle:maxLevel", "", "100"},
-				{"battle:maxLevel", "", "200"},
+				{"id", "type", "value"}, // FieldName 行
+				{"", "battle:maxLevel", "", "100"},
+				{"", "battle:maxLevel", "", "200"},
 			},
 			wantCount: 0,
 			wantErr:   true,
@@ -78,7 +82,8 @@ func TestParseGlobalConfig(t *testing.T) {
 			rows: [][]string{
 				{"!GlobalConfig", "唯一标识", "值类型", "内容"},
 				{"Type", "string", "string", "string"},
-				{"rate:discount", "", "0.85"},
+				{"id", "type", "value"}, // FieldName 行
+				{"", "rate:discount", "", "0.85"},
 			},
 			wantCount: 1,
 			wantErr:   false,
@@ -90,7 +95,7 @@ func TestParseGlobalConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			data, err := ParseGlobalConfig(tt.rows, "test.xlsx")
+			data, err := ParseGlobalConfig(tt.rows, "test.xlsx", "Sheet1")
 
 			if tt.wantErr {
 				assert.Error(t, err)

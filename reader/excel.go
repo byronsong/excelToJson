@@ -46,7 +46,7 @@ func ReadExcel(filePath string) (*FileSchemas, error) {
 	sheets := f.GetSheetList()
 
 	var schemas []*schemapkg.SheetSchema
-	var globalConfigRows [][]string
+	var globalEntries []*globalconfig.GlobalEntry
 
 	for _, sheetName := range sheets {
 		// 跳过 __ClassConfig Sheet（不作为业务数据导出）
@@ -72,8 +72,13 @@ func ReadExcel(filePath string) (*FileSchemas, error) {
 		if len(rows) > 0 && len(rows[0]) > 0 {
 			className := strings.TrimSpace(rows[0][0])
 			if strings.HasPrefix(className, "!") {
-				// GlobalConfig Sheet，收集数据
-				globalConfigRows = append(globalConfigRows, rows...)
+				// GlobalConfig Sheet，每个 Sheet 分别解析
+				sheetData, err := globalconfig.ParseGlobalConfig(rows, fileName, sheetName)
+				if err != nil {
+					return nil, err
+				}
+				// 追加 entries
+				globalEntries = append(globalEntries, sheetData.Entries...)
 				continue
 			}
 		}
@@ -92,12 +97,11 @@ func ReadExcel(filePath string) (*FileSchemas, error) {
 		schemas = append(schemas, schema)
 	}
 
-	// 解析 GlobalConfig 数据
+	// 构建 GlobalConfig 数据
 	var globalData *globalconfig.GlobalData
-	if len(globalConfigRows) > 0 {
-		globalData, err = globalconfig.ParseGlobalConfig(globalConfigRows, fileName)
-		if err != nil {
-			return nil, err
+	if len(globalEntries) > 0 {
+		globalData = &globalconfig.GlobalData{
+			Entries: globalEntries,
 		}
 	}
 
@@ -138,6 +142,7 @@ func ReadAll(inputPath string) ([]*schemapkg.SheetSchema, map[string]*classconfi
 	var allSchemas []*schemapkg.SheetSchema
 	allClassMetas := make(map[string]*classconfig.ClassMeta)
 	var allGlobalEntries []*globalconfig.GlobalEntry
+	globalIDSet := make(map[string]string) // id -> 首次出现的文件名
 
 	info, err := os.Stat(inputPath)
 	if err != nil {
@@ -173,9 +178,18 @@ func ReadAll(inputPath string) ([]*schemapkg.SheetSchema, map[string]*classconfi
 				allClassMetas[className] = meta
 			}
 
-			// 合并 GlobalConfig
+			// 合并 GlobalConfig，检查跨文件 id 重复
 			if fileSchemas.GlobalConfig != nil && len(fileSchemas.GlobalConfig.Entries) > 0 {
-				allGlobalEntries = append(allGlobalEntries, fileSchemas.GlobalConfig.Entries...)
+				fileName := filepath.Base(file)
+				for _, entry := range fileSchemas.GlobalConfig.Entries {
+					if srcFile, exists := globalIDSet[entry.ID]; exists {
+						return nil, nil, nil, fmt.Errorf(
+							"[ERROR] GlobalConfig id 重复，值 \"%s\" 在文件 '%s' 和 '%s' 中均有定义",
+							entry.ID, srcFile, fileName)
+					}
+					globalIDSet[entry.ID] = fileName
+					allGlobalEntries = append(allGlobalEntries, entry)
+				}
 			}
 		}
 	} else {
@@ -192,9 +206,18 @@ func ReadAll(inputPath string) ([]*schemapkg.SheetSchema, map[string]*classconfi
 			allClassMetas[className] = meta
 		}
 
-		// 合并 GlobalConfig
+		// 合并 GlobalConfig，检查跨 Sheet id 重复
 		if fileSchemas.GlobalConfig != nil && len(fileSchemas.GlobalConfig.Entries) > 0 {
-			allGlobalEntries = append(allGlobalEntries, fileSchemas.GlobalConfig.Entries...)
+			fileName := filepath.Base(inputPath)
+			for _, entry := range fileSchemas.GlobalConfig.Entries {
+				if srcFile, exists := globalIDSet[entry.ID]; exists {
+					return nil, nil, nil, fmt.Errorf(
+						"[ERROR] GlobalConfig id 重复，值 \"%s\" 在文件 '%s' 和 '%s' 中均有定义",
+						entry.ID, srcFile, fileName)
+				}
+				globalIDSet[entry.ID] = fileName
+				allGlobalEntries = append(allGlobalEntries, entry)
+			}
 		}
 	}
 

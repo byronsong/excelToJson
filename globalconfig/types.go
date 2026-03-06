@@ -34,6 +34,7 @@ type GlobalError struct {
 	FileName   string
 	SheetName  string
 	Row        int
+	FirstRow   int      // 首次出现行号（用于 ErrIDDuplicate）
 	Col        string
 	Message    string
 	RawValueStr string // 用于错误信息中的实际值
@@ -46,7 +47,7 @@ func (e *GlobalError) Error() string {
 	case ErrEmptyID:
 		return fmt.Sprintf("[ERROR] %s (id): id 不能为空", location)
 	case ErrIDDuplicate:
-		return fmt.Sprintf("[ERROR] %s (id): id 重复，值 \"%s\" 已在行%d出现", location, e.Message, e.Row)
+		return fmt.Sprintf("[ERROR] %s (id): id 重复，值 \"%s\" 已在行%d出现", location, e.Message, e.FirstRow)
 	case ErrTypeInvalid:
 		return fmt.Sprintf("[ERROR] %s (type): 不支持的类型 \"%s\"", location, e.Message)
 	case ErrValueParseFailed:
