@@ -12,6 +12,7 @@
 - **数据类型支持**: int、float、string、bool、数组、Map 等
 - **空值处理**: 空单元格不输出该字段（而非输出零值）
 - **数据校验**: 主键唯一性校验、多 Sheet 数据冲突检测
+- **GlobalConfig 支持**: 独立的全局配置表导出，输出为单文件 GlobalConfig.json
 
 ## 安装
 
@@ -84,7 +85,10 @@ xlsxtojson.exe -i ./testdata -o ./output --dry-run
 | map<int,int> | int->int Map | `1:10;2:20` |
 | map<int,float> | int->float Map | `1:1.5;2:2.5` |
 | map<string,int> | string->int Map | `a:1;b:2` |
-| map<int,string> | int->string Map | `1:a;2:b` |
+| map<int,string> | int->string Map | `1:a,2:b` |
+| map<string,string> | string->string Map | `a:x,b:y` |
+
+> 注意：Map 类型键值对之间使用逗号 `,` 分隔，键值内部使用冒号 `:` 分隔。
 
 ### 嵌套字段语法
 
@@ -111,6 +115,42 @@ xlsxtojson.exe -i ./testdata -o ./output --dry-run
 |-----------|--------|----------|------------|-------------|---------------|
 | TaskConfig | single | id | idx | sheetType | int |
 
+### GlobalConfig 全局配置表
+
+GlobalConfig 用于导出独立的全局配置文件，导出为单独的 `GlobalConfig.json` 文件。
+
+表头结构：
+
+| 行号 | A 列值 | B 列 | C 列 | D 列 |
+|------|--------|------|------|------|
+| 1 | !GlobalConfig | 唯一标识 | 类型 | 内容 |
+| 2 | Type | string | string | string |
+| 3 | id | type | value | - |
+| 4+ | - | 配置ID | 类型声明 | 配置值 |
+
+- **类型声明（C列）**: 可填入 `int`、`float`、`string`、`bool`、`[]int`、`[]float`、`[]string`、`map<string,int>`、`map<string,string>`、`map<int,int>` 等，空置时自动推断
+- **自动推断**: 如果 C 列为空，工具会根据值的内容自动推断类型
+
+示例：
+
+| !GlobalConfig | 唯一标识 | 值类型 | 内容 |
+|---------------|----------|--------|------|
+| Type | string | string | string |
+| id | type | value | |
+| | battle:maxLevel | int | 100 |
+| | battle:version | string | 1.0.0 |
+| | server:enablePvp | bool | true |
+
+导出结果 `GlobalConfig.json`：
+
+```json
+{
+  "battle:maxLevel": 100,
+  "battle:version": "1.0.0",
+  "server:enablePvp": true
+}
+```
+
 ## 输出示例
 
 输入 Excel 数据：
@@ -135,6 +175,7 @@ excelToJson/
 ├── reader/          # Excel 读取
 ├── schema/          # 表头解析
 ├── classconfig/     # __ClassConfig 解析
+├── globalconfig/   # GlobalConfig 解析
 ├── merger/          # 数据合并
 ├── builder/         # 数据构建
 ├── validator/       # 数据校验
