@@ -8,6 +8,7 @@ import (
 	"xlsxtojson/classconfig"
 	"xlsxtojson/merger"
 	"xlsxtojson/schema"
+	"xlsxtojson/util"
 )
 
 // Build 将数据行转换为 Go map
@@ -210,7 +211,7 @@ func convertValue(value string, fieldType schema.FieldType) (interface{}, error)
 		return value, nil
 
 	case schema.TypeBool:
-		return parseBool(value), nil
+		return util.ParseBool(value), nil
 
 	case schema.TypeIntSlice:
 		return ParseIntSlice(value)
@@ -229,15 +230,6 @@ func convertValue(value string, fieldType schema.FieldType) (interface{}, error)
 	}
 
 	return value, nil
-}
-
-// parseBool 解析布尔值
-func parseBool(value string) bool {
-	lower := strings.ToLower(value)
-	if lower == "true" || value == "1" || lower == "是" || lower == "yes" {
-		return true
-	}
-	return false
 }
 
 // ParseIntSlice 解析整数数组

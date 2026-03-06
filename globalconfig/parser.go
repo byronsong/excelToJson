@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"xlsxtojson/builder"
+	"xlsxtojson/util"
 )
 
 // ParseGlobalConfig 解析 GlobalConfig Sheet 数据
@@ -191,7 +192,7 @@ func parseValueWithType(entry *GlobalEntry) (interface{}, error) {
 		return v, nil
 
 	case "bool":
-		return parseBool(entry.RawValue), nil
+		return util.ParseBool(entry.RawValue), nil
 
 	case "string":
 		return entry.RawValue, nil
@@ -230,14 +231,6 @@ func parseValueWithType(entry *GlobalEntry) (interface{}, error) {
 }
 
 // parseBool 解析布尔值
-func parseBool(value string) bool {
-	lower := strings.ToLower(value)
-	if lower == "true" || value == "1" || lower == "是" || lower == "yes" {
-		return true
-	}
-	return false
-}
-
 // parseTypeString 解析类型字符串
 func parseTypeString(typeStr string) string {
 	typeStr = strings.TrimSpace(typeStr)
@@ -286,7 +279,7 @@ func inferAndParse(entry *GlobalEntry) (interface{}, error) {
 
 	lower := strings.ToLower(rawVal)
 	if lower == "true" || lower == "false" {
-		return parseBool(rawVal), nil
+		return util.ParseBool(rawVal), nil
 	}
 
 	// 第二层：复杂类型特征检测（降级为 string，打印 WARN）
