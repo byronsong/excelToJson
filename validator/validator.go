@@ -335,7 +335,7 @@ func validateIntMap(value string) error {
 	if value == "" {
 		return nil
 	}
-	pairs := strings.Split(value, ";")
+	pairs := strings.Split(value, ",")
 	for _, pair := range pairs {
 		pair = strings.TrimSpace(pair)
 		if pair == "" {
@@ -343,7 +343,7 @@ func validateIntMap(value string) error {
 		}
 		kv := strings.Split(pair, ":")
 		if len(kv) != 2 {
-			return fmt.Errorf("期望 map<int,int> 类型，实际值 \"%s\" 格式错误（应为 k:v;k:v）", value)
+			return fmt.Errorf("期望 map<int,int> 类型，实际值 \"%s\" 格式错误（应为 k:v,k:v）", value)
 		}
 		if _, err := strconv.ParseInt(strings.TrimSpace(kv[0]), 10, 64); err != nil {
 			return fmt.Errorf("期望 map<int,int> 类型，实际值 \"%s\" 的键无法解析为整数", value)
@@ -360,7 +360,7 @@ func validateStringMap(value string) error {
 	if value == "" {
 		return nil
 	}
-	pairs := strings.Split(value, ";")
+	pairs := strings.Split(value, ",")
 	for _, pair := range pairs {
 		pair = strings.TrimSpace(pair)
 		if pair == "" {
@@ -368,7 +368,7 @@ func validateStringMap(value string) error {
 		}
 		kv := strings.Split(pair, ":")
 		if len(kv) != 2 {
-			return fmt.Errorf("期望 map<string,int> 类型，实际值 \"%s\" 格式错误（应为 k:v;k:v）", value)
+			return fmt.Errorf("期望 map<string,int> 类型，实际值 \"%s\" 格式错误（应为 k:v,k:v）", value)
 		}
 		if _, err := strconv.ParseInt(strings.TrimSpace(kv[1]), 10, 64); err != nil {
 			return fmt.Errorf("期望 map<string,int> 类型，实际值 \"%s\" 的值无法解析为整数", value)
