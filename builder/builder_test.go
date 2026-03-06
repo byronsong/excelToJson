@@ -54,11 +54,11 @@ func TestConvertValue(t *testing.T) {
 		{"string数组", `"a","b","c"`, schema.TypeStringSlice, []interface{}{"a", "b", "c"}, false},
 
 		// Map类型
-		{"int-int map", "1:100;2:200", schema.TypeIntMap, map[string]interface{}{"1": int64(100), "2": int64(200)}, false},
-		{"string-int map", "key1:100;key2:200", schema.TypeStringMap, map[string]interface{}{"key1": int64(100), "key2": int64(200)}, false},
-		{"map空格", "1 : 100 ; 2 : 200", schema.TypeIntMap, map[string]interface{}{"1": int64(100), "2": int64(200)}, false},
-		{"map格式错误", "1-100;2-200", schema.TypeIntMap, nil, true},
-		{"map键值对缺失", "1:100;2", schema.TypeIntMap, nil, true},
+		{"int-int map", "1:100,2:200", schema.TypeIntMap, map[string]interface{}{"1": int64(100), "2": int64(200)}, false},
+		{"string-int map", "key1:100,key2:200", schema.TypeStringMap, map[string]interface{}{"key1": int64(100), "key2": int64(200)}, false},
+		{"map空格", "1 : 100 , 2 : 200", schema.TypeIntMap, map[string]interface{}{"1": int64(100), "2": int64(200)}, false},
+		{"map格式错误", "1-100,2-200", schema.TypeIntMap, nil, true},
+		{"map键值对缺失", "1:100,2", schema.TypeIntMap, nil, true},
 
 		// 空值处理
 		{"空字符串转int", "", schema.TypeInt, nil, true},

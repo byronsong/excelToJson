@@ -72,7 +72,7 @@ func TestBasicFlow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// 1. 读取 Excel
-			schemas, classMetas, err := reader.ReadAll(getTestdataPath(tt.inputPath))
+			schemas, classMetas, _, err := reader.ReadAll(getTestdataPath(tt.inputPath))
 			require.NoError(t, err, "读取 Excel 失败")
 
 			// 2. 合并数据
@@ -119,7 +119,7 @@ func TestDirectoryFlow(t *testing.T) {
 	wantClasses := 4 // 4 个 Excel 文件
 
 	// 1. 读取目录
-	schemas, classMetas, err := reader.ReadAll(inputPath)
+	schemas, classMetas, _, err := reader.ReadAll(inputPath)
 	require.NoError(t, err, "读取目录失败")
 	assert.GreaterOrEqual(t, len(schemas), wantClasses, "Schema 数量应 >= %d", wantClasses)
 
@@ -165,7 +165,7 @@ func TestExportIntegration(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// 1. 读取
-	schemas, classMetas, err := reader.ReadAll(inputPath)
+	schemas, classMetas, _, err := reader.ReadAll(inputPath)
 	require.NoError(t, err)
 
 	// 2. 合并
@@ -215,7 +215,7 @@ func TestExportIntegration(t *testing.T) {
 func TestEmptySheet(t *testing.T) {
 	// 创建一个只有表头没有数据的 Excel
 	// 这里复用已有的简单场景进行测试
-	schemas, classMetas, err := reader.ReadAll(getTestdataPath("testdata/scenarios/001-basic-flow/D-道具配置.xlsx"))
+	schemas, classMetas, _, err := reader.ReadAll(getTestdataPath("testdata/scenarios/001-basic-flow/D-道具配置.xlsx"))
 	require.NoError(t, err)
 
 	classData, err := merger.Merge(schemas, classMetas)
@@ -231,7 +231,7 @@ func TestEmptySheet(t *testing.T) {
 
 // TestNestedFieldIntegration 测试嵌套字段的完整流程
 func TestNestedFieldIntegration(t *testing.T) {
-	schemas, classMetas, err := reader.ReadAll(getTestdataPath("testdata/scenarios/001-basic-flow/R-任务配置.xlsx"))
+	schemas, classMetas, _, err := reader.ReadAll(getTestdataPath("testdata/scenarios/001-basic-flow/R-任务配置.xlsx"))
 	require.NoError(t, err)
 
 	classData, err := merger.Merge(schemas, classMetas)

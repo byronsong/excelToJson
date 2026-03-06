@@ -16,7 +16,7 @@ func ParseGlobalConfig(rows [][]string, fileName string) (*GlobalData, error) {
 
 	// rows[0] 是第1行（A1 ClassName）
 	// rows[1] 是第2行（中文含义）
-	// rows[2] 是第3行（类型）
+	// rows[2] 是第3行（类型/FieldName）
 	// rows[3] 是第4行起（数据行）
 
 	sheetName := ""
@@ -24,8 +24,49 @@ func ParseGlobalConfig(rows [][]string, fileName string) (*GlobalData, error) {
 		sheetName = strings.TrimSpace(rows[0][0])
 	}
 
+	// 跳过 Client/Server 标记行（第3行），找到 FieldName 行
+	// GlobalConfig 的结构是：
+	// - 第1行: A1=!GlobalConfig, B=唯一标识, C=类型, D=内容
+	// - 第2行: Type, string, string
+	// - 第3行: Client/Server (可选)
+	// - 第4行: id, type, value (FieldName 行)
+	// - 第5行起: 数据
+	//
+	// 找到 FieldName 行
+	fieldNameRow := -1
+
+	// GlobalConfig 结构有两种可能：
+	// 1. 简单结构: rows[0]=A1, rows[1]=中文表头, rows[2]=Type行, rows[3]=数据
+	// 2. 复杂结构: rows[0]=A1, rows[1]=中文表头, rows[2]=Type行, rows[3]=Client/Server, rows[4]=FieldName, rows[5]=数据
+	//
+	// 查找 FieldName 行：跳过 Client/Server 标记行
+	for i := 2; i < len(rows); i++ {
+		if len(rows[i]) == 0 {
+			continue
+		}
+		firstCol := strings.TrimSpace(rows[i][0])
+		// 跳过 Client/Server 标记行和 Type 行
+		if firstCol == "Client" || firstCol == "Server" || firstCol == "Type" {
+			continue
+		}
+		// 找到 FieldName 行
+		fieldNameRow = i
+		break
+	}
+
+	// 如果没找到 FieldName 行，默认使用第3行（索引2）
+	if fieldNameRow == -1 {
+		fieldNameRow = 2
+	}
+
+	// 数据从 FieldName 行的下一行开始
+	dataStartRow := fieldNameRow + 1
+	if dataStartRow >= len(rows) {
+		return nil, fmt.Errorf("%s: GlobalConfig Sheet 没有数据行", fileName)
+	}
+
 	// 获取数据行
-	dataRows := rows[3:]
+	dataRows := rows[dataStartRow:]
 
 	var entries []*GlobalEntry
 
@@ -38,10 +79,10 @@ func ParseGlobalConfig(rows [][]string, fileName string) (*GlobalData, error) {
 			continue
 		}
 
-		// B 列：id
+		// B 列：id（索引1）
 		id := ""
-		if len(row) > 0 {
-			id = strings.TrimSpace(row[0])
+		if len(row) > 1 {
+			id = strings.TrimSpace(row[1])
 		}
 
 		// 检查 id 是否为空
@@ -56,7 +97,7 @@ func ParseGlobalConfig(rows [][]string, fileName string) (*GlobalData, error) {
 		}
 
 		// 检查 id 重复
-		if firstRow, exists := idSet[id]; exists {
+		if _, exists := idSet[id]; exists {
 			return nil, &GlobalError{
 				ErrType:   ErrIDDuplicate,
 				FileName:  fileName,
@@ -68,16 +109,16 @@ func ParseGlobalConfig(rows [][]string, fileName string) (*GlobalData, error) {
 		}
 		idSet[id] = rowIdx + 4
 
-		// C 列：type
+		// C 列：type（索引2）
 		typeStr := ""
-		if len(row) > 1 {
-			typeStr = strings.TrimSpace(row[1])
+		if len(row) > 2 {
+			typeStr = strings.TrimSpace(row[2])
 		}
 
-		// D 列：value
+		// D 列：value（索引3）
 		rawValue := ""
-		if len(row) > 2 {
-			rawValue = strings.TrimSpace(row[2])
+		if len(row) > 3 {
+			rawValue = strings.TrimSpace(row[3])
 		}
 
 		entry := &GlobalEntry{
@@ -174,6 +215,9 @@ func parseValueWithType(entry *GlobalEntry) (interface{}, error) {
 	case "map<int,string>":
 		return builder.ParseIntStringMap(entry.RawValue)
 
+	case "map<int,int>":
+		return builder.ParseIntMap(entry.RawValue)
+
 	default:
 		return nil, &GlobalError{
 			ErrType:   ErrTypeInvalid,
@@ -219,6 +263,8 @@ func parseTypeString(typeStr string) string {
 		return "map<string,string>"
 	case "map<int,string>":
 		return "map<int,string>"
+	case "map<int,int>":
+		return "map<int,int>"
 	default:
 		return typeStr
 	}

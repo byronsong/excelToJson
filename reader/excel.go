@@ -71,7 +71,7 @@ func ReadExcel(filePath string) (*FileSchemas, error) {
 		// 检查是否为 GlobalConfig Sheet（A1 以 ! 开头）
 		if len(rows) > 0 && len(rows[0]) > 0 {
 			className := strings.TrimSpace(rows[0][0])
-			if strings.HasPrefix(className, globalconfig.GlobalConfigSheetName) {
+			if strings.HasPrefix(className, "!") {
 				// GlobalConfig Sheet，收集数据
 				globalConfigRows = append(globalConfigRows, rows...)
 				continue

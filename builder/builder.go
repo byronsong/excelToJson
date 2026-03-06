@@ -225,7 +225,7 @@ func convertValue(value string, fieldType schema.FieldType) (interface{}, error)
 	case schema.TypeIntStringMap:
 		return ParseIntStringMap(value)
 	case schema.TypeStringStringMap:
-		return parseStringStringMap(value)
+		return ParseStringStringMap(value)
 	}
 
 	return value, nil
@@ -245,6 +245,9 @@ func ParseIntSlice(value string) ([]interface{}, error) {
 	if value == "" {
 		return []interface{}{}, nil
 	}
+	// 去掉首尾的方括号
+	value = strings.TrimPrefix(value, "[")
+	value = strings.TrimSuffix(value, "]")
 	parts := strings.Split(value, ",")
 	result := make([]interface{}, 0, len(parts))
 	for _, part := range parts {
