@@ -15,11 +15,6 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// GlobalConfigData 全局配置数据（跨文件合并）
-type GlobalConfigData struct {
-	Entries []*globalconfig.GlobalEntry
-}
-
 // FileSchemas 包含一个文件的 schemas 和该文件的 classMetas
 type FileSchemas struct {
 	Schemas      []*schemapkg.SheetSchema
@@ -138,7 +133,7 @@ func ScanDirectory(dirPath string) ([]string, error) {
 }
 
 // ReadAll 读取输入路径下的所有 Excel 文件
-func ReadAll(inputPath string) ([]*schemapkg.SheetSchema, map[string]*classconfig.ClassMeta, *GlobalConfigData, error) {
+func ReadAll(inputPath string) ([]*schemapkg.SheetSchema, map[string]*classconfig.ClassMeta, *globalconfig.GlobalData, error) {
 	var allSchemas []*schemapkg.SheetSchema
 	allClassMetas := make(map[string]*classconfig.ClassMeta)
 	var allGlobalEntries []*globalconfig.GlobalEntry
@@ -221,10 +216,10 @@ func ReadAll(inputPath string) ([]*schemapkg.SheetSchema, map[string]*classconfi
 		}
 	}
 
-	// 构建 GlobalConfigData
-	var globalData *GlobalConfigData
+	// 构建 GlobalData
+	var globalData *globalconfig.GlobalData
 	if len(allGlobalEntries) > 0 {
-		globalData = &GlobalConfigData{
+		globalData = &globalconfig.GlobalData{
 			Entries: allGlobalEntries,
 		}
 	}

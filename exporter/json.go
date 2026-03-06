@@ -55,22 +55,12 @@ func ExportGlobalConfig(data *globalconfig.GlobalData, outputDir string, pretty 
 
 	outputFile := filepath.Join(outputDir, "GlobalConfig.json")
 
-	// 转换为 key-value 对象
-	result := make(map[string]interface{})
-	for _, entry := range data.Entries {
-		result[entry.ID] = entry.Value
-	}
-
-	// 序列化 JSON
+	// 手动构建有序 JSON，保持 entries 的插入顺序
 	var jsonData []byte
-	var err error
 	if pretty {
-		jsonData, err = json.MarshalIndent(result, "", "  ")
+		jsonData = marshalPrettyJSON(data.Entries)
 	} else {
-		jsonData, err = json.Marshal(result)
-	}
-	if err != nil {
-		return fmt.Errorf("序列化 JSON 失败: %w", err)
+		jsonData = marshalCompactJSON(data.Entries)
 	}
 
 	// 写入文件
@@ -79,4 +69,43 @@ func ExportGlobalConfig(data *globalconfig.GlobalData, outputDir string, pretty 
 	}
 
 	return nil
+}
+
+// marshalCompactJSON 紧凑 JSON 序列化
+func marshalCompactJSON(entries []*globalconfig.GlobalEntry) []byte {
+	buf := make([]byte, 0, 1024)
+	buf = append(buf, '{')
+	for i, entry := range entries {
+		if i > 0 {
+			buf = append(buf, ',')
+		}
+		keyJSON, _ := json.Marshal(entry.ID)
+		buf = append(buf, keyJSON...)
+		buf = append(buf, ':')
+		valJSON, _ := json.Marshal(entry.Value)
+		buf = append(buf, valJSON...)
+	}
+	buf = append(buf, '}')
+	return buf
+}
+
+// marshalPrettyJSON 格式化 JSON 序列化
+func marshalPrettyJSON(entries []*globalconfig.GlobalEntry) []byte {
+	buf := make([]byte, 0, 1024)
+	buf = append(buf, '{')
+	buf = append(buf, '\n')
+	for i, entry := range entries {
+		if i > 0 {
+			buf = append(buf, ",\n"...)
+		}
+		buf = append(buf, "  "...)
+		keyJSON, _ := json.Marshal(entry.ID)
+		buf = append(buf, keyJSON...)
+		buf = append(buf, ": "...)
+		valJSON, _ := json.Marshal(entry.Value)
+		buf = append(buf, valJSON...)
+	}
+	buf = append(buf, '\n')
+	buf = append(buf, '}')
+	return buf
 }
