@@ -112,6 +112,103 @@ func TestParseGlobalConfig(t *testing.T) {
 	}
 }
 
+// TestParseGlobalConfig_WarnPath 测试 WARN 路径
+func TestParseGlobalConfig_WarnPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		rows      [][]string
+		wantCount int
+		wantErr   bool
+		checkFirst func(t *testing.T, entries []*GlobalEntry)
+	}{
+		{
+			name: "含逗号的值自动推断为 string",
+			rows: [][]string{
+				{"!GlobalConfig", "唯一标识", "值类型", "内容"},
+				{"Type", "string", "string", "string"},
+				{"id", "type", "value"},
+				{"", "test:comma", "", "a,b,c"},
+			},
+			wantCount: 1,
+			wantErr:   false,
+			checkFirst: func(t *testing.T, entries []*GlobalEntry) {
+				assert.Equal(t, "test:comma", entries[0].ID)
+				assert.Equal(t, "a,b,c", entries[0].Value) // 推断为 string
+			},
+		},
+		{
+			name: "含冒号的值自动推断为 string",
+			rows: [][]string{
+				{"!GlobalConfig", "唯一标识", "值类型", "内容"},
+				{"Type", "string", "string", "string"},
+				{"id", "type", "value"},
+				{"", "test:colon", "", "k1:v1,k2:v2"},
+			},
+			wantCount: 1,
+			wantErr:   false,
+			checkFirst: func(t *testing.T, entries []*GlobalEntry) {
+				assert.Equal(t, "test:colon", entries[0].ID)
+				assert.Equal(t, "k1:v1,k2:v2", entries[0].Value) // 推断为 string
+			},
+		},
+		{
+			name: "显式 float 类型无小数点",
+			rows: [][]string{
+				{"!GlobalConfig", "唯一标识", "值类型", "内容"},
+				{"Type", "string", "string", "string"},
+				{"id", "type", "value"},
+				{"", "test:float", "float", "5"},
+			},
+			wantCount: 1,
+			wantErr:   false,
+			checkFirst: func(t *testing.T, entries []*GlobalEntry) {
+				assert.Equal(t, "test:float", entries[0].ID)
+				assert.Equal(t, float64(5), entries[0].Value)
+			},
+		},
+		{
+			name: "非法类型报错",
+			rows: [][]string{
+				{"!GlobalConfig", "唯一标识", "值类型", "内容"},
+				{"Type", "string", "string", "string"},
+				{"id", "type", "value"},
+				{"", "test:invalid", "map<bool,int>", "true:1"},
+			},
+			wantCount: 0,
+			wantErr:   true,
+		},
+		{
+			name: "A 列有内容但 B 列为空",
+			rows: [][]string{
+				{"!GlobalConfig", "唯一标识", "值类型", "内容"},
+				{"Type", "string", "string", "string"},
+				{"id", "type", "value"},
+				{"some comment", "", "", "value"},
+			},
+			wantCount: 0,
+			wantErr:   false, // 只是 WARN，不报错
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := ParseGlobalConfig(tt.rows, "test.xlsx", "Sheet1")
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantCount, len(data.Entries))
+
+			if tt.checkFirst != nil && len(data.Entries) > 0 {
+				tt.checkFirst(t, data.Entries)
+			}
+		})
+	}
+}
+
 func TestInferAndParse(t *testing.T) {
 	tests := []struct {
 		name      string
