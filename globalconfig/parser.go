@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"xlsxtojson/builder"
+	schemapkg "xlsxtojson/schema"
 	"xlsxtojson/util"
 )
 
@@ -158,10 +159,10 @@ func parseValue(entry *GlobalEntry) (interface{}, error) {
 
 // parseValueWithType 使用声明的类型解析值
 func parseValueWithType(entry *GlobalEntry) (interface{}, error) {
-	fieldType := parseTypeString(entry.TypeStr)
+	fieldType := schemapkg.ParseFieldType(entry.TypeStr)
 
 	switch fieldType {
-	case "int":
+	case schemapkg.TypeInt:
 		v, err := strconv.ParseInt(entry.RawValue, 10, 64)
 		if err != nil {
 			return nil, &GlobalError{
@@ -176,7 +177,7 @@ func parseValueWithType(entry *GlobalEntry) (interface{}, error) {
 		}
 		return v, nil
 
-	case "float":
+	case schemapkg.TypeFloat:
 		v, err := strconv.ParseFloat(entry.RawValue, 64)
 		if err != nil {
 			return nil, &GlobalError{
@@ -191,31 +192,31 @@ func parseValueWithType(entry *GlobalEntry) (interface{}, error) {
 		}
 		return v, nil
 
-	case "bool":
+	case schemapkg.TypeBool:
 		return util.ParseBool(entry.RawValue), nil
 
-	case "string":
+	case schemapkg.TypeString:
 		return entry.RawValue, nil
 
-	case "[]int":
+	case schemapkg.TypeIntSlice:
 		return builder.ParseIntSlice(entry.RawValue)
 
-	case "[]float":
+	case schemapkg.TypeFloatSlice:
 		return builder.ParseFloatSlice(entry.RawValue)
 
-	case "[]string":
+	case schemapkg.TypeStringSlice:
 		return builder.ParseStringSlice(entry.RawValue)
 
-	case "map<string,int>":
+	case schemapkg.TypeStringMap:
 		return builder.ParseStringMap(entry.RawValue)
 
-	case "map<string,string>":
+	case schemapkg.TypeStringStringMap:
 		return builder.ParseStringStringMap(entry.RawValue)
 
-	case "map<int,string>":
+	case schemapkg.TypeIntStringMap:
 		return builder.ParseIntStringMap(entry.RawValue)
 
-	case "map<int,int>":
+	case schemapkg.TypeIntMap:
 		return builder.ParseIntMap(entry.RawValue)
 
 	default:
@@ -231,37 +232,6 @@ func parseValueWithType(entry *GlobalEntry) (interface{}, error) {
 }
 
 // parseBool 解析布尔值
-// parseTypeString 解析类型字符串
-func parseTypeString(typeStr string) string {
-	typeStr = strings.TrimSpace(typeStr)
-	switch typeStr {
-	case "int", "int64":
-		return "int"
-	case "float", "float64":
-		return "float"
-	case "string":
-		return "string"
-	case "bool":
-		return "bool"
-	case "[]int":
-		return "[]int"
-	case "[]float":
-		return "[]float"
-	case "[]string":
-		return "[]string"
-	case "map<string,int>":
-		return "map<string,int>"
-	case "map<string,string>":
-		return "map<string,string>"
-	case "map<int,string>":
-		return "map<int,string>"
-	case "map<int,int>":
-		return "map<int,int>"
-	default:
-		return typeStr
-	}
-}
-
 // inferAndParse 自动推断类型并解析值
 func inferAndParse(entry *GlobalEntry) (interface{}, error) {
 	rawVal := entry.RawValue
