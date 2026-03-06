@@ -74,15 +74,28 @@ func ParseGlobalConfig(rows [][]string, fileName string, sheetName string) (*Glo
 	idSet := make(map[string]int) // id -> 首次出现的行号
 
 	for rowIdx, row := range dataRows {
+		// 跳过完全空行
 		if len(row) < 2 {
-			// 跳过空行
 			continue
+		}
+
+		// A 列（索引0）：检查是否有内容但 B 列为空的情况
+		colA := ""
+		if len(row) > 0 {
+			colA = strings.TrimSpace(row[0])
 		}
 
 		// B 列：id（索引1）
 		id := ""
 		if len(row) > 1 {
 			id = strings.TrimSpace(row[1])
+		}
+
+		// 如果 A 列有内容但 B 列为空，可能是策划填写了部分内容
+		if colA != "" && id == "" {
+			fmt.Printf("[WARN] %s / %s / 行%d: A 列有内容但 B 列为空，已跳过\n",
+				fileName, sheetName, rowIdx+dataStartRow+1)
+			continue
 		}
 
 		// 检查 id 是否为空
